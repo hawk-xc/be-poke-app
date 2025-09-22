@@ -13,5 +13,6 @@ use App\Http\Controllers\Welcome\WelcomeController;
 | contains the "web" middleware group. Now create something great!
 |
 */
+// 
 
 Route::get('/', [WelcomeController::class, 'welcome']);

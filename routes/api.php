@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Products\ProductsController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Visitor\VisitorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
 Route::group([
     'middleware' => 'api'
 ], function ($router) {
@@ -38,5 +39,8 @@ Route::group([
     Route::get('products/view/all', [ProductsController::class, 'indexAll']);
     Route::get('products/view/search', [ProductsController::class, 'search']);
 
+    // Visitor API
+    Route::apiResource('visitors', VisitorController::class);
+    Route::post('visitors/{id}/restore', [VisitorController::class, 'restore'])->name('visitors.restore');
+    Route::delete('visitors/{id}/force-delete', [VisitorController::class, 'forceDelete'])->name('visitors.forceDelete');
 });
-

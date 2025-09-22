@@ -2,11 +2,16 @@
 
 namespace App\Exceptions;
 
+use App\Traits\ResponseTrait;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
 {
+    use ResponseTrait;
+
     /**
      * A list of the exception types that are not reported.
      *
@@ -28,13 +33,32 @@ class Handler extends ExceptionHandler
 
     /**
      * Register the exception handling callbacks for the application.
-     *
-     * @return void
      */
     public function register()
     {
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+
+    /**
+     * Convert an exception into an HTTP response.
+     */
+    public function render($request, Throwable $exception)
+    {
+        if ($exception instanceof NotFoundHttpException) {
+            return $this->responseError(null, 'API endpoint not found', 404);
+        }
+
+        if ($exception instanceof MethodNotAllowedHttpException) {
+            return $this->responseError(null, 'Method not allowed for this endpoint', 405);
+        }
+
+        if ($exception instanceof \Spatie\Permission\Exceptions\UnauthorizedException) {
+            return $this->responseError(null, 'You do not have the required role/permission', 403);
+        }
+
+
+        return parent::render($request, $exception);
     }
 }
