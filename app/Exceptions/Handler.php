@@ -26,10 +26,7 @@ class Handler extends ExceptionHandler
      *
      * @var array
      */
-    protected $dontFlash = [
-        'password',
-        'password_confirmation',
-    ];
+    protected $dontFlash = ['password', 'password_confirmation'];
 
     /**
      * Register the exception handling callbacks for the application.
@@ -58,6 +55,13 @@ class Handler extends ExceptionHandler
             return $this->responseError(null, 'You do not have the required role/permission', 403);
         }
 
+        if ($exception instanceof \TypeError) {
+            return $this->responseError(['error' => $exception->getMessage()], 'A type error occurred', 500);
+        }
+
+        if ($request->expectsJson()) {
+            return $this->responseError(['error' => $exception->getMessage()], 'Unexpected server error', 500);
+        }
 
         return parent::render($request, $exception);
     }

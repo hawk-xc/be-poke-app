@@ -10,25 +10,22 @@ use App\Repositories\AuthRepository;
 use App\Traits\ResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Tymon\JWTAuth\JWTGuard;
 
+/**
+ * @mixin \Tymon\JWTAuth\JWTGuard
+ */
 class AuthController extends Controller
 {
-    /**
-     * Response trait to handle return responses.
-     */
     use ResponseTrait;
 
     /**
-     * Auth related functionalities.
-     *
      * @var AuthRepository
      */
-    public $authRepository;
+    protected AuthRepository $authRepository;
 
     /**
-     * Create a new AuthController instance.
-     *
-     * @return void
+     * AuthController constructor.
      */
     public function __construct(AuthRepository $ar)
     {
@@ -36,110 +33,52 @@ class AuthController extends Controller
         $this->authRepository = $ar;
     }
 
-    /**
-     * @OA\POST(
-     *     path="/api/auth/login",
-     *     tags={"Authentication"},
-     *     summary="Login",
-     *     description="Login",
-     *     @OA\RequestBody(
-     *          @OA\JsonContent(
-     *              type="object",
-     *              @OA\Property(property="email", type="string", example="admin@example.com"),
-     *              @OA\Property(property="password", type="string", example="123456")
-     *          ),
-     *      ),
-     *      @OA\Response(response=200, description="Login"),
-     *      @OA\Response(response=400, description="Bad request"),
-     *      @OA\Response(response=404, description="Resource Not Found")
-     * )
-     */
     public function login(LoginRequest $request): JsonResponse
     {
         try {
             $credentials = $request->only('email', 'password');
 
-            if ($token = $this->guard()->attempt($credentials)) {
-                $data =  $this->respondWithToken($token);
-            } else {
-                return $this->responseError(null, 'Invalid Email and Password !', Response::HTTP_UNAUTHORIZED);
+            if (!$token = $this->guard()->attempt($credentials)) {
+                return $this->responseError(null, 'Invalid Email or Password !', Response::HTTP_UNAUTHORIZED);
             }
 
-            return $this->responseSuccess($data, 'Logged In Successfully !');
+            return $this->responseSuccess(
+                $this->respondWithToken($token),
+                'Logged In Successfully !'
+            );
         } catch (\Exception $e) {
             return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * @OA\POST(
-     *     path="/api/auth/register",
-     *     tags={"Authentication"},
-     *     summary="Register User",
-     *     description="Register New User",
-     *     @OA\RequestBody(
-     *          @OA\JsonContent(
-     *              type="object",
-     *              @OA\Property(property="name", type="string", example="Jhon Doe"),
-     *              @OA\Property(property="email", type="string", example="jhondoe@example.com"),
-     *              @OA\Property(property="password", type="string", example="123456"),
-     *              @OA\Property(property="password_confirmation", type="string", example="123456")
-     *          ),
-     *      ),
-     *      @OA\Response(response=200, description="Register New User Data" ),
-     *      @OA\Response(response=400, description="Bad request"),
-     *      @OA\Response(response=404, description="Resource Not Found")
-     * )
-     */
     public function register(RegisterRequest $request): JsonResponse
     {
         try {
-            $requestData = $request->only('name', 'email', 'password', 'password_confirmation');
-            $user = $this->authRepository->register($requestData);
-            if ($user) {
-                if ($token = $this->guard()->attempt($requestData)) {
-                    $data =  $this->respondWithToken($token);
-                    return $this->responseSuccess($data, 'User Registered and Logged in Successfully', Response::HTTP_OK);
-                }
+            $data = $request->only('name', 'email', 'password', 'password_confirmation');
+            $user = $this->authRepository->register($data);
+
+            if ($user && $token = $this->guard()->attempt($request->only('email', 'password'))) {
+                return $this->responseSuccess(
+                    $this->respondWithToken($token),
+                    'User Registered and Logged in Successfully'
+                );
             }
+
+            return $this->responseError(null, 'User registration failed', Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
             return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * @OA\GET(
-     *     path="/api/auth/me",
-     *     tags={"Authentication"},
-     *     summary="Authenticated User Profile",
-     *     description="Authenticated User Profile",
-     *     security={{"bearer":{}}},
-     *     @OA\Response(response=200, description="Authenticated User Profile" ),
-     *     @OA\Response(response=400, description="Bad request"),
-     *     @OA\Response(response=404, description="Resource Not Found"),
-     * )
-     */
     public function me(): JsonResponse
     {
         try {
-            $data = $this->guard()->user();
-            return $this->responseSuccess($data, 'Profile Fetched Successfully !');
+            return $this->responseSuccess($this->guard()->user(), 'Profile Fetched Successfully !');
         } catch (\Exception $e) {
             return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * @OA\POST(
-     *     path="/api/auth/logout",
-     *     tags={"Authentication"},
-     *     summary="Logout",
-     *     description="Logout",
-     *     @OA\Response(response=200, description="Logout" ),
-     *     @OA\Response(response=400, description="Bad request"),
-     *     @OA\Response(response=404, description="Resource Not Found"),
-     * )
-     */
     public function logout(): JsonResponse
     {
         try {
@@ -150,53 +89,39 @@ class AuthController extends Controller
         }
     }
 
-    /**
-     * @OA\POST(
-     *     path="/api/auth/refresh",
-     *     tags={"Authentication"},
-     *     summary="Refresh",
-     *     description="Refresh",
-     *     security={{"bearer":{}}},
-     *     @OA\Response(response=200, description="Refresh" ),
-     *     @OA\Response(response=400, description="Bad request"),
-     *     @OA\Response(response=404, description="Resource Not Found"),
-     * )
-     */
     public function refresh(): JsonResponse
     {
         try {
-            $data = $this->respondWithToken($this->guard()->refresh());
-            return $this->responseSuccess($data, 'Token Refreshed Successfully !');
+            return $this->responseSuccess(
+                $this->respondWithToken($this->guard()->refresh()),
+                'Token Refreshed Successfully !'
+            );
         } catch (\Exception $e) {
             return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
-     * Get the token array structure.
-     *
-     * @param  string $token
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Build the token response structure.
      */
-    protected function respondWithToken($token): array
+    protected function respondWithToken(string $token): array
     {
-        $data = [[
+        return [
             'access_token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => $this->guard()->factory()->getTTL() * 60 * 24 * 30, // 43200 Minutes = 30 Days
-            'user' => $this->guard()->user()
-        ]];
-        return $data[0];
+            'token_type'   => 'bearer',
+            // TTL asli dari jwt.php config (dalam menit), dikali 60 = detik
+            'expires_in'   => $this->guard()->factory()->getTTL() * 60,
+            'user'         => $this->guard()->user(),
+        ];
     }
 
     /**
-     * Get the guard to be used during authentication.
-     *
-     * @return \Illuminate\Contracts\Auth\Guard
+     * Get the JWT guard.
      */
-    public function guard(): \Illuminate\Contracts\Auth\Guard|\Illuminate\Contracts\Auth\StatefulGuard
+    protected function guard(): JWTGuard
     {
-        return Auth::guard();
+        /** @var JWTGuard $guard */
+        $guard = Auth::guard('api');
+        return $guard;
     }
 }

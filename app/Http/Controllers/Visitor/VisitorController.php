@@ -6,12 +6,31 @@ use Carbon\Carbon;
 use App\Models\Visitor;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use App\Repositories\AuthRepository;
 use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Builder;
 
 class VisitorController extends Controller
 {
     use ResponseTrait;
+
+    /**
+     * @var AuthRepository
+     */
+    protected AuthRepository $authRepository;
+
+    /**
+     * AuthController constructor.
+     */
+    public function __construct(AuthRepository $ar)
+    {
+        $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
+        $this->middleware(['permission:visitor:create'])->only('store');
+        $this->middleware(['permission:visitor:edit'])->only('update');
+        $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+        
+        $this->authRepository = $ar;
+    }
 
     /**
      * Display a listing of the resource.
