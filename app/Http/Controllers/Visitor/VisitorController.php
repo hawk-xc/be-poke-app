@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Visitor;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use Carbon\Carbon;
 use App\Models\Visitor;
+use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Builder;
 
 class VisitorController extends Controller
@@ -19,25 +20,29 @@ class VisitorController extends Controller
     {
         $query = Visitor::query();
 
-        // Handle soft deletes
         if ($request->query('trashed') === 'with') {
             $query->withTrashed();
         } elseif ($request->query('trashed') === 'only') {
             $query->onlyTrashed();
         }
 
-        // Global search
         if ($request->has('search') && !empty($request->query('search'))) {
             $search = $request->query('search');
-            $query->where(function (Builder $q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('gender', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%");
-            });
+            $searchBy = $request->query('search_by');
+
+            $searchableColumns = ['name', 'gender', 'phone_number', 'address', 'person_group', 'sex', 'similarity', 'emotion', 'mask', 'glasses', 'beard', 'attractive', 'mouth', 'eye', 'strabismus', 'nation', 'task_name'];
+
+            if (!empty($searchBy) && in_array($searchBy, $searchableColumns)) {
+                $query->where($searchBy, 'like', "%{$search}%");
+            } else {
+                $query->where(function (Builder $q) use ($search, $searchableColumns) {
+                    foreach ($searchableColumns as $col) {
+                        $q->orWhere($col, 'like', "%{$search}%");
+                    }
+                });
+            }
         }
 
-        // Column-specific filters
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
         foreach ($filterableColumns as $column) {
             if ($request->has($column) && !empty($request->query($column))) {
@@ -45,16 +50,45 @@ class VisitorController extends Controller
             }
         }
 
-        // Sorting
+        if ($request->has('start_time') && $request->has('end_time')) {
+            $query->whereBetween('start_time', [$request->query('start_time'), $request->query('end_time')]);
+        }
+
+        if ($request->has('time')) {
+            $time = $request->query('time');
+            $now = Carbon::now();
+
+            switch ($time) {
+                case 'today':
+                    $query->whereDate('start_time', $now->toDateString());
+                    break;
+                case 'week':
+                    $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY);
+                    $endOfWeek = $now->copy()->endOfWeek(Carbon::SUNDAY);
+                    $query->whereBetween('start_time', [$startOfWeek, $endOfWeek]);
+                    break;
+                case 'month':
+                    $query->whereBetween('start_time', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()]);
+                    break;
+                case 'year':
+                    $query->whereBetween('start_time', [$now->copy()->startOfYear(), $now->copy()->endOfYear()]);
+                    break;
+            }
+        }
+
+        if ($request->query('sum') === 'count_data') {
+            $count = $query->count();
+            return $this->responseSuccess(['count' => $count], 'Visitors Counted Successfully!');
+        }
+
         if ($request->has('sort_by') && !empty($request->query('sort_by'))) {
             $sortBy = $request->query('sort_by');
             $sortDir = $request->query('sort_dir', 'asc');
             $query->orderBy($sortBy, $sortDir);
         } else {
-            $query->latest(); // Default sort
+            $query->latest();
         }
 
-        // Pagination
         $perPage = $request->query('per_page', 15);
         $visitors = $query->paginate($perPage);
 

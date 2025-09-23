@@ -30,14 +30,14 @@ Route::group([
         Route::post('refresh', [AuthController::class, 'refresh']);
         Route::get('me', [AuthController::class, 'me']);
     });
-    
 
-    /**
-     * Products Module
-     */
-    Route::resource('products', ProductsController::class);
-    Route::get('products/view/all', [ProductsController::class, 'indexAll']);
-    Route::get('products/view/search', [ProductsController::class, 'search']);
+    // User API
+    Route::group(['prefix' => 'user'], function() {
+        Route::apiResource('users', VisitorController::class);    
+    });
+
+    // Role API
+    // Permission API
 
     // Visitor API
     Route::apiResource('visitors', VisitorController::class);
