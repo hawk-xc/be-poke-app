@@ -127,8 +127,13 @@ class VisitorController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $visitor = Visitor::create($validated);
-        return $this->responseSuccess($visitor, 'Visitor Created Successfully!', 201);
+        try {
+            $visitor = Visitor::create($validated);
+
+            return $this->responseSuccess($visitor, 'Visitor Created Successfully!', 201);
+        } catch (\Exception $e) {
+            return $this->responseError($e->getMessage(), 'Visitor Creation Failed!', 500);
+        }
     }
 
     /**

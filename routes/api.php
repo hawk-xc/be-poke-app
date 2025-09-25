@@ -3,6 +3,8 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Products\ProductsController;
 use App\Http\Controllers\Visitor\VisitorController;
+use App\Http\Controllers\User\UserController;
+use App\Http\Controllers\Role\RoleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,11 +34,13 @@ Route::group([
     });
 
     // User API
-    Route::group(['prefix' => 'user'], function() {
-        Route::apiResource('users', VisitorController::class);    
-    });
+    Route::apiResource('users', UserController::class);    
+    Route::post('users/{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
 
     // Role API
+    Route::apiResource('roles', RoleController::class)->only(['index', 'show', 'store']);
+    Route::post('roles/{id}/assign-permission', [RoleController::class, 'assignPermission'])->name('roles.assign-permission');
+
     // Permission API
 
     // Visitor API

@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use App\Traits\ResponseTrait;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -61,6 +62,14 @@ class Handler extends ExceptionHandler
 
         if ($request->expectsJson()) {
             return $this->responseError(['error' => $exception->getMessage()], 'Unexpected server error', 500);
+        }
+
+        if ($exception instanceof ValidationException) {
+            return $this->responseError(
+                $exception->errors(), 
+                'Validation failed', 
+                422
+            );
         }
 
         return parent::render($request, $exception);
