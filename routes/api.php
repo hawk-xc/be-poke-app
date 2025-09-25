@@ -39,7 +39,8 @@ Route::group([
 
     // Role API
     Route::apiResource('roles', RoleController::class)->only(['index', 'show', 'store']);
-    Route::post('roles/{id}/assign-permission', [RoleController::class, 'assignPermission'])->name('roles.assign-permission');
+    Route::get('roles/{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
+    Route::post('roles/{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
 
     // Permission API
 

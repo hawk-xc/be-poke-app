@@ -54,6 +54,17 @@ class RoleController extends Controller
         return $this->responseSuccess($role, 'Role retrieved successfully');
     }
 
+    public function showWithoutPermissions(string $id)
+    {
+        $role = Role::with(['users'])->find($id);
+
+        if (!$role) {
+            return $this->errorResponse(null, 'Role not found', 404);
+        }
+
+        return $this->responseSuccess($role, 'Role retrieved successfully');
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -65,7 +76,7 @@ class RoleController extends Controller
         return $this->responseSuccess($role, 'Role created successfully');
     }
 
-    public function assignPermission(Request $request, string $id)
+    public function assignPermissions(Request $request, string $id)
     {
         $role = Role::find($id);
 
@@ -74,11 +85,23 @@ class RoleController extends Controller
         }
 
         $request->validate([
-            'permission' => 'required|string|exists:permissions,name'
+            'permissions' => ['required', 'string', function ($attribute, $value, $fail) {
+                $permissionNames = array_map('trim', explode(',', $value));
+                $dbPermissions = \Spatie\Permission\Models\Permission::whereIn('name', $permissionNames)->get();
+
+                if (count($permissionNames) !== $dbPermissions->count()) {
+                    $missingPermissions = array_diff($permissionNames, $dbPermissions->pluck('name')->all());
+                    $fail('The following permissions do not exist: ' . implode(', ', $missingPermissions));
+                }
+            }],
         ]);
 
-        $role->givePermissionTo($request->permission);
+        $permissionNames = array_map('trim', explode(',', $request->permissions));
 
-        return $this->responseSuccess($role, 'Permission assigned successfully');
+        $role->givePermissionTo($permissionNames);
+
+        $role->load('permissions');
+
+        return $this->responseSuccess($role, 'Permissions assigned successfully');
     }
 }
