@@ -12,8 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
+            $table->enum('label', ['in', 'out'])->default('in')->nullable(true)->after('id');
             $table->string('event_type')->nullable()->change();
-            $table->integer('rec_no')->nullable(true)->after('id');
+            $table->integer('rec_no')->nullable(true)->after('label');
             $table->tinyInteger('channel')->nullable(true)->after('rec_no');
             $table->boolean('status')->default(false)->after('similarity');
             $table->string('embedding_id')->nullable(true)->after('person_id');
@@ -27,6 +28,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
+            $table->dropColumn('label');
             $table->dropColumn('rec_no');
             $table->dropColumn('channel');
             $table->dropColumn('status');

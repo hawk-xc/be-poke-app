@@ -58,6 +58,14 @@ class VisitorDetection extends Model
         'similarity',
         
         // Soft delete
-        'deleted_at'
+        'deleted_at',
+
+        'label',
+        'event_type',
+        'rec_no',
+        'channel',
+        'status',
+        'embedding_id',
+        'duration',
     ];
 }

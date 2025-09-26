@@ -2,27 +2,30 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
 use App\Models\VisitorDetection;
 
-class DahuaFetchDetectionData extends Command
+use Illuminate\Console\Command;
+
+class DahuaFaceDetectionChannel1 extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'dahua:fetch-detection-data {start?} {end?}';
+    protected $signature = 'dahua:face-detection-channel1 {start?} {end?}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Fetch Dahua FaceDetection media files by time range';
+    protected $description = 'Command description';
+
+    protected int $channel = 1; // out gate
 
     /**
      * Execute the console command.
@@ -30,8 +33,8 @@ class DahuaFetchDetectionData extends Command
     public function handle()
     {
         date_default_timezone_set('Asia/Jakarta');
-        $start_time = $this->argument('start') ?? date('Y-m-d 00:00:00');
-        $end_time   = $this->argument('end') ?? date('Y-m-d 23:59:59');
+        $start_time = $this->argument('start') ?? date('Y-m-d H:i:s', strtotime('-15 minutes'));
+        $end_time   = $this->argument('end') ?? date('Y-m-d H:i:s');
 
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
         $username = env('DAHUA_DIGEST_USERNAME');
@@ -63,6 +66,7 @@ class DahuaFetchDetectionData extends Command
 
             $objId = str_replace('result=', '', $body);
             $this->info("Finder created: {$objId}");
+            $this->info("Fetching data from {$start_time} to {$end_time}...");
 
             // STEP 2: Set conditions
             $client->request('GET', '/cgi-bin/mediaFileFind.cgi', [
@@ -72,7 +76,7 @@ class DahuaFetchDetectionData extends Command
                 'query' => [
                     'action' => 'findFile',
                     'object' => $objId,
-                    'condition.Channel' => 1,
+                    'condition.Channel' => $this->channel,
                     'condition.StartTime' => $start_time,
                     'condition.EndTime' => $end_time,
                     'condition.Types[0]' => 'jpg',
@@ -114,8 +118,6 @@ class DahuaFetchDetectionData extends Command
 
                 $parsed = $this->parseMediaFileResponse($raw);
 
-                print_r($parsed);
-
                 $lastCount = count($parsed['items']); // actual number of items parsed this page
                 $this->info("Page {$page}: API reported found={$parsed['found']} | parsed items={$lastCount}");
 
@@ -153,7 +155,7 @@ class DahuaFetchDetectionData extends Command
                 try {
                     VisitorDetection::create($item);
                     $saved_count++;
-                    $this->info("Saved Visitor RecNo={$item['rec_no']} ID={$item['id']}");
+                    $this->info("Saved Visitor RecNo={$item['rec_no']}");
                 } catch (\Exception $e) {
                     $error_count++;
                     $this->error("Failed to save RecNo={$item['rec_no']}: " . $e->getMessage());
@@ -237,6 +239,13 @@ class DahuaFetchDetectionData extends Command
                         break;
                     case 'FilePath':
                         try {
+                            if (
+                                !empty($result['items'][$idx]['rec_no']) &&
+                                \App\Models\VisitorDetection::where('rec_no', $result['items'][$idx]['rec_no'])->exists()
+                            ) {
+                                break;
+                            }
+
                             $client = new \GuzzleHttp\Client([
                                 'auth' => [$username, $password, 'digest'],
                                 'verify' => false,
@@ -259,8 +268,8 @@ class DahuaFetchDetectionData extends Command
                         } catch (\Exception $e) {
                             system_log('error', 'Gagal mengunduh gambar FaceDetection file_path image : ' . $e->getMessage());
                         }
-
                         break;
+
                     case 'SummaryNew[0].EventType':
                         $result['items'][$idx]['event_type'] = $val;
                         break;
@@ -289,6 +298,7 @@ class DahuaFetchDetectionData extends Command
         // Default values biar match tabel
         foreach ($result['items'] as &$item) {
             $item = array_merge([
+                'channel' => $this->channel,
                 'rec_no' => null,
                 'channel' => 0,
                 'code' => null,
@@ -310,14 +320,5 @@ class DahuaFetchDetectionData extends Command
         }
 
         return $result;
-    }
-
-    private function parseDateTime($dateString): string
-    {
-        if (str_contains($dateString, 'T') && str_contains($dateString, 'Z')) {
-            return date('Y-m-d H:i:s', strtotime($dateString));
-        }
-
-        return date('Y-m-d H:i:s', strtotime($dateString));
     }
 }
