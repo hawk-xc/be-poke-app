@@ -1,11 +1,10 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\Products\ProductsController;
-use App\Http\Controllers\Visitor\VisitorController;
-use App\Http\Controllers\User\UserController;
-use App\Http\Controllers\Role\RoleController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Role\RoleController;
+use App\Http\Controllers\User\UserController;
+use App\Http\Controllers\Visitor\VisitorDetectionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,7 +44,7 @@ Route::group([
     // Permission API
 
     // Visitor API
-    Route::apiResource('visitors', VisitorController::class);
-    Route::post('visitors/{id}/restore', [VisitorController::class, 'restore'])->name('visitors.restore');
-    Route::delete('visitors/{id}/force-delete', [VisitorController::class, 'forceDelete'])->name('visitors.forceDelete');
+    Route::apiResource('visitors', VisitorDetectionController::class);
+    Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
+    Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.forceDelete');
 });
