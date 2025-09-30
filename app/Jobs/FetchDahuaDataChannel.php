@@ -55,7 +55,7 @@ class FetchDahuaDataChannel implements ShouldQueue
 
         try {
             // STEP 1: Create finder
-            $res = $client->request('GET', '/cgi-bin/mediaFileFind.cgi', [
+            $res = $client->request('GET', '/mediaFileFind.cgi', [
                 'auth' => [$username, $password, 'digest'],
                 'cookies' => $jar,
                 'http_errors' => false,
