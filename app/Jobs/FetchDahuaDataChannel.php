@@ -115,7 +115,9 @@ class FetchDahuaDataChannel implements ShouldQueue
                 ]);
 
                 $raw = (string) $resMediaFile->getBody();
-                Storage::append('dahua_keepalive.log', "=== PAGE {$page} ===\n" . $raw);
+
+                $filename = storage_path('logs/dahua_keepalive.log');
+                file_put_contents($filename, "=== PAGE {$page} ===\n" . $raw . PHP_EOL, FILE_APPEND | LOCK_EX);
 
                 $parsed = parseFeceDetectionData($raw, $this->channel, $this->label);
 
