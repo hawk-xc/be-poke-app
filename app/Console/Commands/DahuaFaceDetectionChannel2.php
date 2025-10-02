@@ -32,8 +32,8 @@ class DahuaFaceDetectionChannel2 extends Command
     public function handle()
     {
         date_default_timezone_set('Asia/Jakarta');
-        $start_time = $this->argument('start') ?? date('Y-m-d H:i:s', strtotime('-15 minutes'));
-        $end_time   = $this->argument('end') ?? date('Y-m-d H:i:s');
+        $start_time = $this->argument('start') ?? date('Y-m-d H:i:s', strtotime('-17 minutes'));
+        $end_time   = $this->argument('end')   ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
 
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
         $username = env('DAHUA_DIGEST_USERNAME');

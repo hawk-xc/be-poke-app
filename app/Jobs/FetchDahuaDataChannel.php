@@ -32,7 +32,7 @@ class FetchDahuaDataChannel implements ShouldQueue
         $this->channel   = $channel;
         $this->label     = $label;
         $this->startTime = $startTime ?? date('Y-m-d H:i:s', strtotime('-15 minutes'));
-        $this->endTime   = $endTime   ?? date('Y-m-d H:i:s');
+        $this->endTime   = $endTime   ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
     }
 
     /**

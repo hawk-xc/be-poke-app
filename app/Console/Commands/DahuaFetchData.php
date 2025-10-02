@@ -16,8 +16,8 @@ class DahuaFetchData extends Command
     public function handle()
     {
         date_default_timezone_set('Asia/Jakarta');
-        $start_time = $this->argument('start') ?? date('Y-m-d 00:00:00');
-        $end_time   = $this->argument('end') ?? date('Y-m-d 23:59:59');
+        $start_time = $this->argument('start') ?? date('Y-m-d H:i:s', strtotime('-17 minutes'));
+        $end_time   = $this->argument('end')   ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
 
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
         $username = env('DAHUA_DIGEST_USERNAME');
