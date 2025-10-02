@@ -115,7 +115,7 @@ class DahuaFaceDetectionChannel3 extends Command
                 ]);
 
                 $raw = (string) $resMediaFile->getBody();
-                Storage::append('dahua_keepalive.log', "=== PAGE {$page} ===\n" . $raw);
+                Storage::put('dahua_keepalive.log', "=== PAGE {$page} ===\n" . $raw);
 
                 $parsed = $this->parseMediaFileResponse($raw);
 
