@@ -17,6 +17,10 @@ use App\Http\Controllers\Visitor\VisitorDetectionController;
 |
 */
 
+Route::options('{any}', function () {
+    return response()->json([], 200);
+})->where('any', '.*');
+
 Route::group([
     'middleware' => 'api'
 ], function ($router) {
