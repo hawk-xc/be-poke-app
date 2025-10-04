@@ -2,12 +2,13 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Support\Facades\Storage;
 use GuzzleHttp\Client;
-use GuzzleHttp\Cookie\CookieJar;
-use App\Models\VisitorDetection;
-
 use Illuminate\Console\Command;
+use App\Models\VisitorDetection;
+use GuzzleHttp\Cookie\CookieJar;
+
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class DahuaFaceDetectionChannel1 extends Command
 {
@@ -239,34 +240,59 @@ class DahuaFaceDetectionChannel1 extends Command
                         break;
                     case 'FilePath':
                         try {
-                            if (
-                                !empty($result['items'][$idx]['rec_no']) &&
-                                \App\Models\VisitorDetection::where('rec_no', $result['items'][$idx]['rec_no'])->exists()
-                            ) {
-                                break;
-                            }
-
-                            $client = new \GuzzleHttp\Client([
-                                'auth' => [$username, $password, 'digest'],
-                                'verify' => false,
-                            ]);
-
                             $fileName = basename($val);
-                            $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
+                            $savePath = storage_path('app/public/dahua_files/' . $fileName);
 
                             if (!file_exists(dirname($savePath))) {
                                 mkdir(dirname($savePath), 0775, true);
                             }
 
-                            $res = $client->get($endpoint . '/RPC_Loadfile' . $val, [
-                                'sink' => $savePath,
+                            $jar = new \GuzzleHttp\Cookie\CookieJar();
+
+                            $client = new \GuzzleHttp\Client([
+                                'base_uri' => $endpoint,
+                                'verify' => false,
+                                'cookies' => $jar,
+                                'timeout' => 60,
+                                'curl' => [
+                                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                                    CURLOPT_FORBID_REUSE => true,
+                                    CURLOPT_FRESH_CONNECT => true,
+                                ],
+                                'headers' => [
+                                    'User-Agent' => 'curl/7.85.0',
+                                    'Connection' => 'close',
+                                    'Accept' => '*/*',
+                                ],
+                                'http_errors' => false,
                             ]);
 
-                            if ($res->getStatusCode() == 200) {
-                                $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
+                            $url = '/cgi-bin/RPC_Loadfile/' . ltrim($val, '/');
+
+                            // 1) dummy request → trigger digest challenge
+                            try {
+                                $client->get($url, ['http_errors' => false]);
+                            } catch (\Exception $e) {
+                                Log::warning("Dummy request error (ignored): " . $e->getMessage());
+                            }
+
+                            // 2) real request with digest auth
+                            $res = $client->get($url, [
+                                'auth' => [$username, $password, 'digest'],
+                                'sink' => $savePath,
+                                'http_errors' => false,
+                                'allow_redirects' => false,
+                            ]);
+
+                            $status = $res->getStatusCode();
+                            if ($status === 200 && file_exists($savePath)) {
+                                $result['items'][$idx]['person_pic_url'] = '/storage/dahua_files/' . $fileName;
+                                Log::info("Download sukses: {$savePath}");
+                            } else {
+                                Log::error("Download gagal: HTTP {$status}, val={$val}");
                             }
                         } catch (\Exception $e) {
-                            system_log('error', 'Gagal mengunduh gambar FaceDetection file_path image : ' . $e->getMessage());
+                            Log::error("Gagal unduh FaceDetection {$val}: " . $e->getMessage());
                         }
                         break;
 
