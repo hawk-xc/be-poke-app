@@ -15,11 +15,15 @@ return [
     |
     */
 
-    'paths' => ['*', 'sanctum/csrf-cookie'],
+    // 'paths' => ['*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'geni/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'http://localhost:3000',
+        'https://api-andromeda.deraly.id',
+    ],
 
     'allowed_origins_patterns' => [],
 
