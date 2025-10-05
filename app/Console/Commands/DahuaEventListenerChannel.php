@@ -37,46 +37,61 @@ class DahuaEventListenerChannel extends Command
         $username = env('DAHUA_DIGEST_USERNAME');
         $password = env('DAHUA_DIGEST_PASSWORD');
 
-        $ch = curl_init();
+        // Loop agar selalu reconnect jika terputus
+        while (true) {
+            try {
+                $this->info("Connecting to $url");
 
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
-        curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
-        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use ($endpoint) {
-            $event = trim($data);
+                // Gunakan cURL manual agar digest auth bisa berfungsi penuh
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $url);
+                curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
+                curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-            if (!empty($event)) {
-                $client = new Client([
-                    'base_uri' => $endpoint,
-                    'timeout' => 15,
-                    'verify' => false,
-                ]);
-                $jar = new CookieJar();
+                // Callback saat menerima event dari Dahua
+                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use ($endpoint) {
+                    $event = trim($data);
 
-                try {
-                    // run the job
-                    FetchDahuaDataChannel::dispatch(1, 'out');
-                    FetchDahuaDataChannel::dispatch(2, 'in');
-                    FetchDahuaDataChannel::dispatch(3, 'in');
-                    echo "Fetch command executed\n";
-                } catch (\Exception $e) {
-                    Log::error("Keep-alive error: " . $e->getMessage());
+                    if (!empty($event)) {
+                        // Log isi event mentah (opsional)
+                        Log::info("Dahua event received: " . $event);
+
+                        // Jalankan job async untuk setiap channel
+                        try {
+                            FetchDahuaDataChannel::dispatch(1, 'out');
+                            FetchDahuaDataChannel::dispatch(2, 'in');
+                            FetchDahuaDataChannel::dispatch(3, 'in');
+
+                            echo "Fetch command executed at " . now() . "\n";
+                        } catch (\Exception $e) {
+                            Log::error("Job dispatch error: " . $e->getMessage());
+                        }
+                    }
+
+                    return strlen($data); // jaga agar koneksi tetap hidup
+                });
+
+                $this->info('Listening... press CTRL+C to stop');
+                curl_exec($ch);
+
+                if (curl_errno($ch)) {
+                    $this->error('cURL error: ' . curl_error($ch));
+                    Log::error('cURL error: ' . curl_error($ch));
                 }
+
+                curl_close($ch);
+            } catch (\Exception $e) {
+                Log::error('Request error: ' . $e->getMessage());
+                $this->error('Request error: ' . $e->getMessage());
             }
 
-            return strlen($data); // keep connection alive
-        });
-
-        curl_setopt($ch, CURLOPT_TIMEOUT, 0);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 0);
-
-        $this->info('Listening... press CTRL+C to stop');
-        curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            $this->error('cURL error: ' . curl_error($ch));
+            // Jika koneksi terputus, tunggu sebentar dan reconnect
+            $this->warn("Reconnecting to Dahua event stream in 5 seconds...");
+            sleep(5);
         }
-
-        curl_close($ch);
     }
 }
