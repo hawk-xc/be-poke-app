@@ -241,7 +241,7 @@ class DahuaFaceDetectionChannel1 extends Command
                     case 'FilePath':
                         try {
                             $fileName = basename($val);
-                            $savePath = storage_path('app/public/dahua_files/' . $fileName);
+                            $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
 
                             if (!file_exists(dirname($savePath))) {
                                 mkdir(dirname($savePath), 0775, true);
@@ -286,7 +286,7 @@ class DahuaFaceDetectionChannel1 extends Command
 
                             $status = $res->getStatusCode();
                             if ($status === 200 && file_exists($savePath)) {
-                                $result['items'][$idx]['person_pic_url'] = '/storage/dahua_files/' . $fileName;
+                                $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
                                 Log::info("Download sukses: {$savePath}");
                             } else {
                                 Log::error("Download gagal: HTTP {$status}, val={$val}");

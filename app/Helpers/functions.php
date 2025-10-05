@@ -1,8 +1,9 @@
 <?php
 
-use Illuminate\Support\Facades\Auth;
 use App\Models\UserLog;
 use App\Models\SystemLog;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 if (!function_exists('user_log')) {
     function user_log($action, $user_id = null, $email = null, $type = 'auth', $message = null)
@@ -76,18 +77,6 @@ if (!function_exists('parseFeceDetectionData')) {
                         break;
                     case 'FilePath':
                         try {
-                            if (
-                                !empty($result['items'][$idx]['rec_no']) &&
-                                \App\Models\VisitorDetection::where('rec_no', $result['items'][$idx]['rec_no'])->exists()
-                            ) {
-                                break;
-                            }
-
-                            $client = new \GuzzleHttp\Client([
-                                'auth' => [$username, $password, 'digest'],
-                                'verify' => false,
-                            ]);
-
                             $fileName = basename($val);
                             $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
 
@@ -95,15 +84,51 @@ if (!function_exists('parseFeceDetectionData')) {
                                 mkdir(dirname($savePath), 0775, true);
                             }
 
-                            $res = $client->get($endpoint . '/RPC_Loadfile' . $val, [
-                                'sink' => $savePath,
+                            $jar = new \GuzzleHttp\Cookie\CookieJar();
+
+                            $client = new \GuzzleHttp\Client([
+                                'base_uri' => $endpoint,
+                                'verify' => false,
+                                'cookies' => $jar,
+                                'timeout' => 60,
+                                'curl' => [
+                                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                                    CURLOPT_FORBID_REUSE => true,
+                                    CURLOPT_FRESH_CONNECT => true,
+                                ],
+                                'headers' => [
+                                    'User-Agent' => 'curl/7.85.0',
+                                    'Connection' => 'close',
+                                    'Accept' => '*/*',
+                                ],
+                                'http_errors' => false,
                             ]);
 
-                            if ($res->getStatusCode() == 200) {
+                            $url = '/cgi-bin/RPC_Loadfile/' . ltrim($val, '/');
+
+                            // 1) dummy request → trigger digest challenge
+                            try {
+                                $client->get($url, ['http_errors' => false]);
+                            } catch (\Exception $e) {
+                            }
+
+                            // 2) real request with digest auth
+                            $res = $client->get($url, [
+                                'auth' => [$username, $password, 'digest'],
+                                'sink' => $savePath,
+                                'http_errors' => false,
+                                'allow_redirects' => false,
+                            ]);
+
+                            $status = $res->getStatusCode();
+                            if ($status === 200 && file_exists($savePath)) {
                                 $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
+                                Log::info("Download sukses: {$savePath}");
+                            } else {
+                                Log::error("Download gagal: HTTP {$status}, val={$val}");
                             }
                         } catch (\Exception $e) {
-                            system_log('error', 'Gagal mengunduh gambar FaceDetection file_path image : ' . $e->getMessage());
+                            Log::error("Gagal unduh FaceDetection {$val}: " . $e->getMessage());
                         }
                         break;
 
