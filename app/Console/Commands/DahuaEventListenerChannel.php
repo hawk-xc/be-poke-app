@@ -33,7 +33,7 @@ class DahuaEventListenerChannel extends Command
         $this->info('Starting Dahua IVS event listener...');
 
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
-        $url = $endpoint . '/eventManager.cgi?action=attach&codes=[All]';
+        $url = $endpoint . '/cgi-bin/eventManager.cgi?action=attach&codes=[All]';
         $username = env('DAHUA_DIGEST_USERNAME');
         $password = env('DAHUA_DIGEST_PASSWORD');
 
