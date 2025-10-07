@@ -22,6 +22,7 @@ return [
 
     'allowed_origins' => [
         'http://localhost:3000',
+        'http://twb.deraly.id',
         'https://api-andromeda.deraly.id',
     ],
 
