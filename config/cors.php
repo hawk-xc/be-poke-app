@@ -21,10 +21,11 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'http://localhost:3000',
-        'https://twb.deraly.id',
-        'http://twb.deraly.id',
-        'https://api-andromeda.deraly.id',
+        '*'
+        // 'http://localhost:3000',
+        // 'https://twb.deraly.id',
+        // 'http://twb.deraly.id',
+        // 'https://api-andromeda.deraly.id',
     ],
 
     'allowed_origins_patterns' => [],
