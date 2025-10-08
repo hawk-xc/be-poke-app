@@ -50,10 +50,10 @@ class VisitorDetectionController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
-        $this->middleware(['permission:visitor:create'])->only('store');
-        $this->middleware(['permission:visitor:edit'])->only('update');
-        $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+        // $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
+        // $this->middleware(['permission:visitor:create'])->only('store');
+        // $this->middleware(['permission:visitor:edit'])->only('update');
+        // $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
         
         $this->authRepository = $ar;
     }
