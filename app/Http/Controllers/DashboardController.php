@@ -5,10 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\VisitorDetection;
 use App\Traits\ResponseTrait;
 use Illuminate\Http\Request;
+use App\Repositories\AuthRepository;
 
 class DashboardController extends Controller
 {
     use ResponseTrait;
+    
+    /**
+     * @var AuthRepository
+     */
+    protected AuthRepository $authRepository;
+
+    /**
+     * AuthController constructor.
+     */
+    public function __construct(AuthRepository $ar)
+    {
+        $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
+        $this->middleware(['permission:visitor:create'])->only('store');
+        $this->middleware(['permission:visitor:edit'])->only('update');
+        $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+        
+        $this->authRepository = $ar;
+    }
 
     public function index(Request $request)
     {
