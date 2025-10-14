@@ -33,6 +33,36 @@ class DashboardController extends Controller
     {
         $query = VisitorDetection::query();
 
+        // Filter by time range (today, week, month)
+        if ($request->filled('range')) {
+            $today = now()->startOfDay();
+
+            switch ($request->range) {
+                case 'today':
+                    $start = $today;
+                    $end = now()->endOfDay();
+                    break;
+
+                case 'week':
+                    $start = now()->startOfWeek();
+                    $end = now()->endOfWeek();
+                    break;
+
+                case 'month':
+                    $start = now()->startOfMonth();
+                    $end = now()->endOfMonth();
+                    break;
+
+                default:
+                    $start = null;
+                    $end = null;
+            }
+
+            if ($start && $end) {
+                $query->whereBetween('locale_time', [$start, $end]);
+            }
+        }
+
         if ($request->filled('start_date') && $request->filled('end_date')) {
             $query->whereBetween('locale_time', [
                 $request->start_date . ' 00:00:00',
