@@ -21,7 +21,6 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        '*',
         'http://localhost:3000',
         'https://twb.deraly.id',
         'http://twb.deraly.id',
