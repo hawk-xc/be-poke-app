@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Role\RoleController;
 use App\Http\Controllers\User\UserController;
@@ -36,6 +37,9 @@ Route::group([
         Route::get('me', [AuthController::class, 'me']);
     });
 
+    // Dashboard Statictic API
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
     // User API
     Route::apiResource('users', UserController::class);    
     Route::post('users/{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
@@ -44,8 +48,6 @@ Route::group([
     Route::apiResource('roles', RoleController::class)->only(['index', 'show', 'store']);
     Route::get('roles/{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
     Route::post('roles/{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
-
-    // Permission API
 
     // Visitor API
     Route::apiResource('visitors', VisitorDetectionController::class);
