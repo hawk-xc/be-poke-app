@@ -58,7 +58,7 @@ class DahuaEventListenerChannel extends Command
 
                     if (!empty($event)) {
                         // Log isi event mentah (opsional)
-                        Log::info("Dahua event received: " . $event);
+                        // Log::info("Dahua event received: " . $event)
 
                         // Jalankan job async untuk setiap channel
                         try {

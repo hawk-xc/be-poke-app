@@ -50,11 +50,11 @@ class VisitorDetectionController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
+        // $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
         $this->middleware(['permission:visitor:create'])->only('store');
         $this->middleware(['permission:visitor:edit'])->only('update');
         $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
-        
+
         $this->authRepository = $ar;
     }
 
@@ -64,6 +64,18 @@ class VisitorDetectionController extends Controller
     public function index(Request $request)
     {
         $query = Visitor::query();
+
+        if ($request->has('data_status') && $request->query('data_status') === 'with_embedding') {
+            $query->whereNotNull('embedding_id');
+        }
+
+        if ($request->has('label') && $request->query('label') === 'in') {
+            $query->where('label', 'in');
+        }
+
+        if ($request->has('label') && $request->query('label') === 'out') {
+            $query->where('label', 'out');
+        }
 
         if ($request->query('trashed') === 'with') {
             $query->withTrashed();
@@ -166,7 +178,28 @@ class VisitorDetectionController extends Controller
     public function show(string $id)
     {
         $visitor = Visitor::withTrashed()->findOrFail($id);
-        return $this->responseSuccess($visitor, 'Visitor Fetched Successfully!');
+
+        $visitor_data = [
+            'current' => $visitor,
+            'related' => [],
+        ];
+
+        if (!is_null($visitor->embedding_id)) {
+            $relatedVisitors = Visitor::withTrashed()
+                ->where('embedding_id', $visitor->embedding_id)
+                ->where('id', '!=', $visitor->id)
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            $labeled = $relatedVisitors->map(function ($item) use ($visitor) {
+                $item->label_relation = $visitor->label === 'in' ? 'out' : 'in';
+                return $item;
+            });
+
+            $visitor_data['related'] = $labeled;
+        }
+
+        return $this->responseSuccess($visitor_data, 'Visitor fetched successfully!');
     }
 
     /**

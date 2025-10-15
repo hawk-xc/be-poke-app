@@ -66,7 +66,7 @@ class DahuaFaceDetectionChannel1 extends Command
             }
 
             $objId = str_replace('result=', '', $body);
-            $this->info("Finder created: {$objId}");
+            // $this->info("Finder created: {$objId}");
             $this->info("Fetching data from {$start_time} to {$end_time}...");
 
             // STEP 2: Set conditions
@@ -120,7 +120,7 @@ class DahuaFaceDetectionChannel1 extends Command
                 $parsed = $this->parseMediaFileResponse($raw);
 
                 $lastCount = count($parsed['items']); // actual number of items parsed this page
-                $this->info("Page {$page}: API reported found={$parsed['found']} | parsed items={$lastCount}");
+                // $this->info("Page {$page}: API reported found={$parsed['found']} | parsed items={$lastCount}");
 
                 $totalReported += $parsed['found'];
                 if (!empty($parsed['items'])) {
@@ -133,7 +133,7 @@ class DahuaFaceDetectionChannel1 extends Command
 
             // SUMMARY dari API
             $this->info("Total API reported found sum: {$totalReported}");
-            $this->info("Total Parsed Items collected: " . count($allItems));
+            // $this->info("Total Parsed Items collected: " . count($allItems));
 
             // STEP 3b: Simpan ke DB
             $skipped_no_rec_no = 0;
