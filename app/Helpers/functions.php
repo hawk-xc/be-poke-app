@@ -78,7 +78,7 @@ if (!function_exists('parseFeceDetectionData')) {
                     case 'FilePath':
                         try {
                             $fileName = basename($val);
-                            $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
+                            $savePath = storage_path('app/public/faceDetection_folder/' . $label . '/' . $fileName);
 
                             if (!file_exists(dirname($savePath))) {
                                 mkdir(dirname($savePath), 0775, true);
