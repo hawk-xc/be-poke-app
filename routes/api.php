@@ -24,7 +24,7 @@ Route::options('{any}', function () {
 
 Route::group([
     'middleware' => 'api'
-], function ($router) {
+], function () {
     
     /**
      * Authentication Module

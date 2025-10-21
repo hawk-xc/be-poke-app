@@ -185,3 +185,66 @@ if (!function_exists('parseFeceDetectionData')) {
         return $result;
     }
 }
+
+if (!function_exists('downloadMedia')) {
+    function downloadMedia(string $fileName, string $label = "in")
+    {
+
+        $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
+        $username = env('DAHUA_DIGEST_USERNAME');
+        $password = env('DAHUA_DIGEST_PASSWORD');
+        
+        try {
+            $savePath = storage_path('app/public/faceDetection_folder/' . $label . '/' . $fileName);
+
+            if (!file_exists(dirname($savePath))) {
+                mkdir(dirname($savePath), 0775, true);
+            }
+
+            $jar = new \GuzzleHttp\Cookie\CookieJar();
+
+            $client = new \GuzzleHttp\Client([
+                'base_uri' => $endpoint,
+                'verify' => false,
+                'cookies' => $jar,
+                'timeout' => 60,
+                'curl' => [
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                    CURLOPT_FORBID_REUSE => true,
+                    CURLOPT_FRESH_CONNECT => true,
+                ],
+                'headers' => [
+                    'User-Agent' => 'curl/7.85.0',
+                    'Connection' => 'close',
+                    'Accept' => '*/*',
+                ],
+                'http_errors' => false,
+            ]);
+
+            $url = '/cgi-bin/RPC_Loadfile/' . $fileName;
+
+            try {
+                $client->get($url, ['http_errors' => false]);
+            } catch (\Exception $e) {
+                return $e->getMessage();
+            }
+
+            // 2) real request with digest auth
+            $res = $client->get($url, [
+                'auth' => [$username, $password, 'digest'],
+                'sink' => $savePath,
+                'http_errors' => false,
+                'allow_redirects' => false,
+            ]);
+
+            $status = $res->getStatusCode();
+            if ($status === 200 && file_exists($savePath)) {
+                return "Download sukses: {$savePath}";
+            } else {
+                return "Download gagal: HTTP {$status}, val={$val}";
+            }
+        } catch (\Exception $err) {
+            return $err->getMessage();
+        }
+    }
+}
