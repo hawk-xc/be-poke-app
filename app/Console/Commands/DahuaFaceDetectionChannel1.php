@@ -240,62 +240,18 @@ class DahuaFaceDetectionChannel1 extends Command
                         break;
                     case 'FilePath':
                         try {
-                            $fileName = basename($val);
-                            $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
+                            $downloadedUrl = downloadMedia(ltrim($val, '/'), 'out'); // bisa ubah label sesuai kebutuhan
 
-                            if (!file_exists(dirname($savePath))) {
-                                mkdir(dirname($savePath), 0775, true);
-                            }
-
-                            $jar = new \GuzzleHttp\Cookie\CookieJar();
-
-                            $client = new \GuzzleHttp\Client([
-                                'base_uri' => $endpoint,
-                                'verify' => false,
-                                'cookies' => $jar,
-                                'timeout' => 60,
-                                'curl' => [
-                                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                                    CURLOPT_FORBID_REUSE => true,
-                                    CURLOPT_FRESH_CONNECT => true,
-                                ],
-                                'headers' => [
-                                    'User-Agent' => 'curl/7.85.0',
-                                    'Connection' => 'close',
-                                    'Accept' => '*/*',
-                                ],
-                                'http_errors' => false,
-                            ]);
-
-                            $url = '/cgi-bin/RPC_Loadfile/' . ltrim($val, '/');
-
-                            // 1) dummy request → trigger digest challenge
-                            try {
-                                $client->get($url, ['http_errors' => false]);
-                            } catch (\Exception $e) {
-                                Log::warning("Dummy request error (ignored): " . $e->getMessage());
-                            }
-
-                            // 2) real request with digest auth
-                            $res = $client->get($url, [
-                                'auth' => [$username, $password, 'digest'],
-                                'sink' => $savePath,
-                                'http_errors' => false,
-                                'allow_redirects' => false,
-                            ]);
-
-                            $status = $res->getStatusCode();
-                            if ($status === 200 && file_exists($savePath)) {
-                                $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
-                                Log::info("Download sukses: {$savePath}");
+                            if (str_starts_with($downloadedUrl, '/storage/')) {
+                                $result['items'][$idx]['person_pic_url'] = $downloadedUrl;
+                                Log::info("Download sukses via helper: {$downloadedUrl}");
                             } else {
-                                Log::error("Download gagal: HTTP {$status}, val={$val}");
+                                Log::error("Download gagal via helper: {$downloadedUrl}");
                             }
                         } catch (\Exception $e) {
                             Log::error("Gagal unduh FaceDetection {$val}: " . $e->getMessage());
                         }
                         break;
-
                     case 'SummaryNew[0].EventType':
                         $result['items'][$idx]['event_type'] = $val;
                         break;
