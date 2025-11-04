@@ -35,13 +35,14 @@ Route::group([
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('refresh', [AuthController::class, 'refresh']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::put('new-password', [AuthController::class, 'newPassword'])->name('users.new-password');    
     });
 
     // Dashboard Statictic API
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // User API
-    Route::apiResource('users', UserController::class);    
+    Route::apiResource('users', UserController::class);
     Route::post('users/{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
 
     // Role API
@@ -52,5 +53,6 @@ Route::group([
     // Visitor API
     Route::apiResource('visitors', VisitorDetectionController::class);
     Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
-    Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.forceDelete');
+    Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
+    Route::get('visitors/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
 });

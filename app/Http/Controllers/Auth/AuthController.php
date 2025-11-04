@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers\Auth;
 
-use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\LoginRequest;
-use App\Http\Requests\RegisterRequest;
-use App\Repositories\AuthRepository;
-use App\Traits\ResponseTrait;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Response;
 use Tymon\JWTAuth\JWTGuard;
+use Illuminate\Http\Request;
+use App\Traits\ResponseTrait;
+use Illuminate\Http\Response;
+use Illuminate\Http\JsonResponse;
+use App\Http\Requests\LoginRequest;
+use App\Http\Controllers\Controller;
+use App\Repositories\AuthRepository;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use App\Http\Requests\RegisterRequest;
 
 /**
  * @mixin \Tymon\JWTAuth\JWTGuard
@@ -123,5 +125,32 @@ class AuthController extends Controller
         /** @var JWTGuard $guard */
         $guard = Auth::guard('api');
         return $guard;
+    }
+
+    public function newPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'password' => 'required|string',
+            'new_password' => 'required|string|min:8',
+        ]);
+
+        $credentials = [
+            'email' => auth()->user()->email,
+            'password' => $request->password,
+        ];
+
+        if (!$this->guard()->validate($credentials)) {
+            return $this->responseError(null, 'Invalid Email or Password !', Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $user = $this->guard()->user();
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            return $this->responseSuccess($user, 'Password changed successfully');
+        } catch (\Exception $e) {
+            return $this->responseError(null, $e->getMessage(), 500);
+        }
     }
 }

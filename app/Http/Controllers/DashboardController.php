@@ -73,19 +73,19 @@ class DashboardController extends Controller
         // get data from filter
         $data = $query->get();
 
-        // ✅ visitor in & out total
+        // visitor in & out total
         $totalIn = $data->where('label', 'in')->count();
         $totalOut = $data->where('label', 'out')->count();
         $totalAll = $data->count();
 
-        // ✅ Gender distribution
+        // Gender distribution
         $maleCount = $data->where('face_sex', 'Man')->count();
         $femaleCount = $data->where('face_sex', 'Woman')->count();
 
         $malePercent = $totalAll > 0 ? round(($maleCount / $totalAll) * 100, 2) : 0;
         $femalePercent = $totalAll > 0 ? round(($femaleCount / $totalAll) * 100, 2) : 0;
 
-        // ✅ Age Statistic
+        // Age Statistic
         $ageCategories = [
             '0-17' => $data->whereBetween('face_age', [0, 17])->count(),
             '18-25' => $data->whereBetween('face_age', [18, 25])->count(),
@@ -100,7 +100,7 @@ class DashboardController extends Controller
             $agePercentages[$range] = $totalAll > 0 ? round(($count / $totalAll) * 100, 2) : 0;
         }
 
-        // ✅ Peak Hour (per 1H)
+        // Peak Hour (per 1H)
         $busyHours = $data
             ->groupBy(function ($item) {
                 return date('H:00', strtotime($item->locale_time));
