@@ -136,6 +136,10 @@ class UserController extends Controller
             return $this->responseError(null, 'User not found', 404);
         }
 
+        if ($user->hasRole('admin')) {
+            return $this->responseError(null, 'Cannot delete admin user', 403);
+        }
+
         DB::beginTransaction();
         try {
             $user->delete();
