@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+use function PHPSTORM_META\map;
+
 class VisitorDetection extends Model
 {
     use SoftDeletes;
@@ -12,6 +14,11 @@ class VisitorDetection extends Model
     protected $table = 'visitor_detections';
 
     protected $fillable = [
+        // Machine Learning Data
+        'is_registered',
+        'rec_no_in',
+        'is_matched',
+
         // Basic detection data
         'code',
         'action',
@@ -33,6 +40,10 @@ class VisitorDetection extends Model
         'face_center',
         'face_feature',
         'face_object_id',
+        'glasses',
+        'mustache',
+        'out_locale_time',
+        'gate_name',
         
         // Additional Object
         'object_action',
