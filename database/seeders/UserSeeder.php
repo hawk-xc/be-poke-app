@@ -17,14 +17,17 @@ class UserSeeder extends Seeder
     public function run()
     {
         DB::table('users')->delete();
-        $data = [
-            'name' => 'Maniruzzaman Akash',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('123456')
-        ];
-        User::create($data);
 
-        // Testing Dummy User
-        User::factory(20)->create();
+        $user = User::create([
+            'name' => 'Admin TWB',
+            'email' => 'admin@deraly.id',
+            'password' => bcrypt('rootme'),
+        ]);
+
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+
+        $adminRole->syncPermissions(Permission::all());
+
+        $user->assignRole($adminRole);
     }
 }
