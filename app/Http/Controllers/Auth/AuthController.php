@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Models\User;
 use Tymon\JWTAuth\JWTGuard;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
@@ -13,6 +14,7 @@ use App\Repositories\AuthRepository;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Requests\RegisterRequest;
+use Illuminate\Support\Facades\Password;
 
 /**
  * @mixin \Tymon\JWTAuth\JWTGuard
@@ -31,7 +33,7 @@ class AuthController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        $this->middleware('auth:api', ['except' => ['login', 'register']]);
+        $this->middleware('auth:api', ['except' => ['login', 'register', 'sendResetLink', 'resetPassword']]);
         $this->authRepository = $ar;
     }
 
@@ -151,6 +153,47 @@ class AuthController extends Controller
             return $this->responseSuccess($user, 'Password changed successfully');
         } catch (\Exception $e) {
             return $this->responseError(null, $e->getMessage(), 500);
+        }
+    }
+
+    public function sendResetLink(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $status = Password::sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status === Password::RESET_LINK_SENT)
+        {
+            return $this->responseSuccess([], __($status), 200);
+        } else {
+            return $this->responseError([], __($status), 400);
+        }
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                ])->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET)
+        {
+            return $this->responseSuccess([], __($status), 200);
+        } else {
+            return $this->responseError([], __($status), 400);
         }
     }
 }
