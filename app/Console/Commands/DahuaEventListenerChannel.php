@@ -37,12 +37,10 @@ class DahuaEventListenerChannel extends Command
         $username = env('DAHUA_DIGEST_USERNAME');
         $password = env('DAHUA_DIGEST_PASSWORD');
 
-        // Loop agar selalu reconnect jika terputus
         while (true) {
             try {
                 $this->info("Connecting to $url");
 
-                // Gunakan cURL manual agar digest auth bisa berfungsi penuh
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $url);
                 curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
@@ -52,19 +50,19 @@ class DahuaEventListenerChannel extends Command
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-                // Callback saat menerima event dari Dahua
                 curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use ($endpoint) {
                     $event = trim($data);
 
                     if (!empty($event)) {
-                        // Log isi event mentah (opsional)
-                        // Log::info("Dahua event received: " . $event)
-
-                        // Jalankan job async untuk setiap channel
                         try {
-                            FetchDahuaDataChannel::dispatch(1, 'out');
-                            FetchDahuaDataChannel::dispatch(2, 'in');
-                            FetchDahuaDataChannel::dispatch(3, 'in');
+                            FetchDahuaDataChannel::dispatch(1, 'out', 'Gate-Out-A');
+                            FetchDahuaDataChannel::dispatch(2, 'in', 'Gate-In-A');
+                            FetchDahuaDataChannel::dispatch(3, 'in', 'Gate-In-B');
+                            FetchDahuaDataChannel::dispatch(4, 'in', 'Gate-In-C');
+                            FetchDahuaDataChannel::dispatch(5, 'in', 'Gate-In-D');
+                            FetchDahuaDataChannel::dispatch(6, 'in', 'Gate-In-E');
+                            FetchDahuaDataChannel::dispatch(7, 'in', 'Gate-In-F');
+                            FetchDahuaDataChannel::dispatch(8, 'in', 'Gate-In-G');
 
                             echo "Fetch command executed at " . now() . "\n";
                         } catch (\Exception $e) {
@@ -72,7 +70,7 @@ class DahuaEventListenerChannel extends Command
                         }
                     }
 
-                    return strlen($data); // jaga agar koneksi tetap hidup
+                    return strlen($data);
                 });
 
                 $this->info('Listening... press CTRL+C to stop');
@@ -89,7 +87,6 @@ class DahuaEventListenerChannel extends Command
                 $this->error('Request error: ' . $e->getMessage());
             }
 
-            // Jika koneksi terputus, tunggu sebentar dan reconnect
             $this->warn("Reconnecting to Dahua event stream in 5 seconds...");
             sleep(5);
         }

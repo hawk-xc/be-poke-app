@@ -29,7 +29,7 @@ if (!function_exists('system_log')) {
 }
 
 if (!function_exists('parseFeceDetectionData')) {
-    function parseFeceDetectionData($raw, int $channel = 1, string $label = 'in')
+    function parseFeceDetectionData($raw, int $channel = 1, string $label = 'in', string $gate_name = 'Gate-In-1')
     {
         $lines = explode("\n", trim($raw));
         $result = ['items' => [], 'found' => 0];
@@ -120,6 +120,7 @@ if (!function_exists('parseFeceDetectionData')) {
             $item = array_merge([
                 'label' => $label,
                 'channel' => $channel,
+                'gate_name' => $gate_name,
                 'rec_no' => null,
                 'channel' => 0,
                 'code' => null,

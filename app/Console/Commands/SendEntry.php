@@ -7,7 +7,7 @@ use GuzzleHttp\Client;
 use App\Models\VisitorDetection;
 use Illuminate\Support\Facades\Log;
 
-class SendInEntry extends Command
+class SendEntry extends Command
 {
     protected $endpoint;
 
@@ -35,43 +35,62 @@ class SendInEntry extends Command
         $this->info("Mengambil data: label={$label}, order={$order}, limit={$limit}");
 
         $data = VisitorDetection::where('label', $label)
+            ->whereNotNull('person_pic_url')
+            ->where('is_registered', false)
+            ->where('person_pic_url', '<>', '')
             ->orderBy('locale_time', $order)
             ->limit($limit)
             ->get();
 
         if ($data->isEmpty()) {
-            $this->warn('⚠️ Tidak ada data ditemukan.');
+            $this->warn("⚠️ Tidak ada data yang ditemukan.");
             return;
         }
 
-        $payload = [
-            'data' => $data->map(function ($item) {
-                $imageBase64 = null;
-                if (!empty($item->person_pic_url)) {
-                    try {
-                        $path = str_replace(url('/storage'), storage_path('app/public'), $item->person_pic_url);
-                        if (file_exists($path)) {
-                            $imageBase64 = base64_encode(file_get_contents($path));
-                        }
-                    } catch (\Exception $e) {
-                        $this->warn("Gagal encode gambar ID {$item->id}: " . $e->getMessage());
-                    }
-                }
+        // Map dan encode gambar
+        $payloadData = $data->map(function ($item) {
+            $imageBase64 = null;
 
-                return [
-                    'id'        => $item->id,
-                    'rec_no'    => $item->rec_no,
-                    'label'     => $item->label,
-                    'timestamp' => $item->locale_time,
-                    'gate'      => $item->gate_name ?? 'gate-in-A',
-                    'image'     => $imageBase64,
-                ];
-            })->toArray(),
-        ];
+            if (!empty($item->person_pic_url)) {
+                try {
+                    $path = str_replace('/storage', storage_path('app/public'), $item->person_pic_url);
+
+                    if (file_exists($path)) {
+                        $imageBase64 = base64_encode(file_get_contents($path));
+                    }
+                } catch (\Exception $e) {
+                    $this->warn("Gagal encode gambar ID {$item->id}: " . $e->getMessage());
+                }
+            }
+
+            if ($imageBase64 === null) {
+                // Skip item ini nanti
+                return null;
+            }
+
+            return [
+                'id'        => $item->id,
+                'rec_no'    => $item->rec_no,
+                'label'     => $item->label,
+                'timestamp' => $item->locale_time,
+                'gate'      => $item->gate_name ?? 'gate-in-A',
+                'image'     => $imageBase64,
+            ];
+        })
+            ->filter() // buang yang null (image kosong)
+            ->values()
+            ->toArray();
+
+        if (empty($payloadData)) {
+            $this->warn("⚠️ Tidak ada data yang memiliki gambar valid untuk dikirim.");
+            return;
+        }
+
+        $payload = ['data' => $payloadData];
 
         try {
             $client = new Client(['verify' => false]);
-            $response = $client->post($this->endpoint ?? $endpoint, [
+            $response = $client->post($endpoint ?? $this->endpoint, [
                 'headers' => ['Content-Type' => 'application/json'],
                 'body'    => json_encode($payload),
             ]);
@@ -87,47 +106,69 @@ class SendInEntry extends Command
             $this->info("✅ Data berhasil dikirim ke {$endpoint}");
             $this->line($body);
 
-            // Decode response dari machine learning
             $responseData = json_decode($body, true);
 
             if (!is_array($responseData)) {
-                $this->error('❌ Response dari server tidak valid JSON.');
                 return;
             }
 
-            // Proses update ke database
-            foreach ($responseData as $res) {
+            foreach ($responseData['data'] as $res) {
                 try {
-                    $query = null;
+                    $label = $res['label'] ?? null;
+                    $recNo = $res['rec_no'] ?? null;
+                    $recNoIn = $res['rec_no_in'] ?? null;
 
-                    if ($res['label'] === 'in') {
-                        $query = VisitorDetection::where('rec_no', $res['rec_no']);
-                    } elseif ($res['label'] === 'out' && !empty($res['rec_no_in'])) {
-                        $query = VisitorDetection::where('rec_no', $res['rec_no_in']);
+                    if (empty($label) || empty($recNo)) {
+                        $this->warn("⚠️ Data tidak valid: label atau rec_no kosong, id={$res['id']}");
+                        continue;
                     }
 
-                    if ($query) {
-                        $updated = $query->update([
+                    if ($label === 'in') {
+                        $updated = VisitorDetection::where('rec_no', $recNo)->update([
                             'embedding_id'  => $res['embedding_id'] ?? null,
                             'status'        => $res['status'] ?? null,
                             'is_registered' => $res['is_registered'] ?? null,
-                            'rec_no_in'     => $res['rec_no_in'] ?? null,
                         ]);
 
                         if ($updated) {
-                            $this->info("✅ Data rec_no {$res['rec_no']} berhasil diupdate.");
+                            $this->info("✅ Data IN rec_no {$recNo} berhasil diupdate.");
                         } else {
-                            $this->warn("⚠️ Data rec_no {$res['rec_no']} tidak ditemukan di DB.");
+                            $this->warn("⚠️ Data IN rec_no {$recNo} tidak ditemukan di DB.");
+                        }
+                    }
+
+                    elseif ($label === 'out') {
+                        if (empty($recNoIn)) {
+                            $this->warn("⚠️ Lewati OUT id={$res['id']} karena rec_no_in kosong.");
+                            continue;
+                        }
+
+                        $updatedIn = VisitorDetection::where('rec_no', $recNoIn)->update([
+                            'embedding_id'  => $res['embedding_id'] ?? null,
+                            'status'        => $res['status'] ? true : false,
+                            'is_registered' => $res['is_registered'] ? true : false,
+                        ]);
+
+                        $updatedOut = VisitorDetection::where('rec_no', $recNo)->update([
+                            'embedding_id'  => $res['embedding_id'] ?? null,
+                            'status'        => $res['status'] ? true : false,
+                            'is_registered' => $res['is_registered'] ? true : false,
+                            'rec_no_in'     => $recNoIn,
+                        ]);
+
+                        if ($updatedIn || $updatedOut) {
+                            $this->info("✅ Data OUT rec_no {$recNo} & rec_no_in {$recNoIn} berhasil diupdate.");
+                        } else {
+                            $this->warn("⚠️ Tidak ditemukan data OUT rec_no {$recNo} atau IN {$recNoIn} di DB.");
                         }
                     }
                 } catch (\Exception $e) {
-                    $this->error("❌ Gagal update rec_no {$res['rec_no']}: " . $e->getMessage());
+                    $this->error("❌ Gagal update data rec_no {$res['rec_no']} (label={$res['label']}): " . $e->getMessage());
                     Log::error($e);
                 }
             }
 
             $this->info('🚀 Semua data telah diproses.');
-
         } catch (\Exception $e) {
             $this->error("❌ Error saat mengirim: " . $e->getMessage());
             Log::error($e);

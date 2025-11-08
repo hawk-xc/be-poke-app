@@ -19,18 +19,20 @@ class FetchDahuaDataChannel implements ShouldQueue
 
     protected int $channel;
     protected string $label;
+    protected string $gate_name = 'Gate-In-1';
     protected string $startTime;
     protected string $endTime;
 
     /**
      * Create a new job instance.
      */
-    public function __construct(int $channel = 1, ?string $label = 'in', ?string $startTime = null, ?string $endTime = null)
+    public function __construct(int $channel = 1, ?string $label = 'in', ?string $gate_name = 'Gate-In-1', ?string $startTime = null, ?string $endTime = null)
     {
         date_default_timezone_set('Asia/Jakarta');
 
         $this->channel   = $channel;
         $this->label     = $label;
+        $this->gate_name = $gate_name;
         $this->startTime = $startTime ?? date('Y-m-d H:i:s', strtotime('-15 minutes'));
         $this->endTime   = $endTime   ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
     }
@@ -119,7 +121,7 @@ class FetchDahuaDataChannel implements ShouldQueue
                 $filename = storage_path('logs/dahua_keepalive.log');
                 file_put_contents($filename, "=== PAGE {$page} ===\n" . $raw . PHP_EOL, FILE_APPEND | LOCK_EX);
 
-                $parsed = parseFeceDetectionData($raw, $this->channel, $this->label);
+                $parsed = parseFeceDetectionData($raw, $this->channel, $this->label, $this->gate_name);
 
                 $lastCount = count($parsed['items']);
                 Log::info("Page {$page}: API reported found={$parsed['found']} | parsed items={$lastCount}");

@@ -12,9 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
+            if (Schema::hasColumn('visitor_detections', 'is_registered')) {
+                return;
+            }
+
+            if (Schema::hasColumn('visitor_detections', 'is_matched')) {
+                return;
+            }
+
             $table->boolean('is_registered')->default(false)->after('label');
             $table->boolean('is_matched')->default(false)->after('is_registered');
-            $table->string('rec_no_in')->nullable(false)->after('rec_no');
+            $table->string('rec_no_in')->nullable(true)->after('rec_no');
         });
     }
 
@@ -25,6 +33,7 @@ return new class extends Migration
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
             $table->dropColumn('is_registered');
+            $table->dropColumn('is_matched');
             $table->dropColumn('rec_no_in');
         });
     }
