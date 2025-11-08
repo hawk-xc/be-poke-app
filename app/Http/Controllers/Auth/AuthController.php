@@ -14,6 +14,7 @@ use App\Repositories\AuthRepository;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Requests\RegisterRequest;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Password;
 
 /**
@@ -94,20 +95,26 @@ class AuthController extends Controller
                 'avatar' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             ]);
 
+            $this->responseSuccess($request->all(), 'request!');
+
             if ($request->filled('name')) {
                 $user->name = $request->name;
             }
+
             if ($request->filled('email')) {
                 $user->email = $request->email;
             }
 
             if ($request->hasFile('avatar')) {
-                if ($user->avatar && file_exists(public_path(str_replace('/storage', 'storage', $user->avatar)))) {
-                    @unlink(public_path(str_replace('/storage', 'storage', $user->avatar)));
+                if ($user->avatar) {
+                    $oldPath = str_replace('/storage/', 'public/', $user->avatar);
+                    if (Storage::exists($oldPath)) {
+                        Storage::delete($oldPath);
+                    }
                 }
 
                 $path = $request->file('avatar')->store('public/avatars');
-                $user->avatar = '/storage/' . str_replace('public/', '', $path);
+                $user->avatar = Storage::url($path);
             }
 
             $user->save();
@@ -117,6 +124,7 @@ class AuthController extends Controller
             return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
 
 
     public function logout(): JsonResponse
