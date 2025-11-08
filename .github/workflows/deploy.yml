@@ -3,7 +3,7 @@ name: Andromeda BE Action
 on:
   push:
     branches:
-      - development
+      - master
 
 jobs:
   deploy:
