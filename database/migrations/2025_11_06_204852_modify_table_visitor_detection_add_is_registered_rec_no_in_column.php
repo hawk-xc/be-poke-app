@@ -22,7 +22,7 @@ return new class extends Migration
 
             $table->boolean('is_registered')->default(false)->after('label');
             $table->boolean('is_matched')->default(false)->after('is_registered');
-            $table->string('rec_no_in')->nullable(true)->after('rec_no');
+            $table->integer('rec_no_in')->nullable(true)->after('rec_no');
         });
     }
 

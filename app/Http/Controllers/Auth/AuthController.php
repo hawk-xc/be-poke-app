@@ -83,6 +83,42 @@ class AuthController extends Controller
         }
     }
 
+    public function update(Request $request): JsonResponse
+    {
+        try {
+            $user = $this->guard()->user();
+
+            $request->validate([
+                'name'   => 'sometimes|string|max:255',
+                'email'  => 'sometimes|email|unique:users,email,' . $user->id,
+                'avatar' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
+            ]);
+
+            if ($request->filled('name')) {
+                $user->name = $request->name;
+            }
+            if ($request->filled('email')) {
+                $user->email = $request->email;
+            }
+
+            if ($request->hasFile('avatar')) {
+                if ($user->avatar && file_exists(public_path(str_replace('/storage', 'storage', $user->avatar)))) {
+                    @unlink(public_path(str_replace('/storage', 'storage', $user->avatar)));
+                }
+
+                $path = $request->file('avatar')->store('public/avatars');
+                $user->avatar = '/storage/' . str_replace('public/', '', $path);
+            }
+
+            $user->save();
+
+            return $this->responseSuccess($user, 'Profile updated successfully!');
+        } catch (\Exception $e) {
+            return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
     public function logout(): JsonResponse
     {
         try {
@@ -164,8 +200,7 @@ class AuthController extends Controller
             $request->only('email')
         );
 
-        if ($status === Password::RESET_LINK_SENT)
-        {
+        if ($status === Password::RESET_LINK_SENT) {
             return $this->responseSuccess([], __($status), 200);
         } else {
             return $this->responseError([], __($status), 400);
@@ -189,8 +224,7 @@ class AuthController extends Controller
             }
         );
 
-        if ($status === Password::PASSWORD_RESET)
-        {
+        if ($status === Password::PASSWORD_RESET) {
             return $this->responseSuccess([], __($status), 200);
         } else {
             return $this->responseError([], __($status), 400);
