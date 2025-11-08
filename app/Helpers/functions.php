@@ -198,7 +198,7 @@ if (!function_exists('downloadMedia')) {
 
             $status = $res->getStatusCode();
             if ($status === 200 && file_exists($savePath)) {
-                return '/storage/faceDetection_folder/' . $fileName;
+                return '/storage/faceDetection_folder/' . $label . '/' . $fileName;
             } else {
                 return "Download gagal: HTTP {$status}, val={$val}";
             }
