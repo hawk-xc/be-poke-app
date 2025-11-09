@@ -100,6 +100,33 @@ services:
     networks:
       - chronical-net
 
+  # =====================================
+  # 🕒 Laravel Scheduler
+  # =====================================
+  scheduler:
+    build: .
+    container_name: twb-be-scheduler
+    restart: always
+    working_dir: /var/www
+    env_file:
+      - .env
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+    volumes: *code_sync
+    command: >
+      sh -c "
+        echo '🕒 Starting Laravel Scheduler...' &&
+        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
+        if [ ! -d vendor ]; then
+          echo '📦 vendor not found, running composer install...';
+          composer install --no-interaction --prefer-dist --optimize-autoloader;
+        fi &&
+        php artisan schedule:work
+      "
+    networks:
+      - chronical-net
+
 networks:
   chronical-net:
     external: true
