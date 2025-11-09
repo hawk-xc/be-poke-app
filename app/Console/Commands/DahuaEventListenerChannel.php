@@ -55,13 +55,13 @@ class DahuaEventListenerChannel extends Command
 
                     if (!empty($event)) {
                         try {
-                            FetchDahuaDataChannel::dispatch(1, 'out', 'Gate-Out-A');
-                            FetchDahuaDataChannel::dispatch(2, 'in', 'Gate-In-A');
-                            FetchDahuaDataChannel::dispatch(3, 'in', 'Gate-In-B');
-                            FetchDahuaDataChannel::dispatch(4, 'in', 'Gate-In-C');
-                            FetchDahuaDataChannel::dispatch(5, 'in', 'Gate-In-D');
-                            FetchDahuaDataChannel::dispatch(6, 'in', 'Gate-In-E');
-                            FetchDahuaDataChannel::dispatch(7, 'in', 'Gate-In-F');
+                            FetchDahuaDataChannel::dispatch(1, 'in', 'Gate-In-A');
+                            FetchDahuaDataChannel::dispatch(2, 'in', 'Gate-In-B');
+                            FetchDahuaDataChannel::dispatch(3, 'in', 'Gate-In-C');
+                            FetchDahuaDataChannel::dispatch(4, 'in', 'Gate-In-D');
+                            FetchDahuaDataChannel::dispatch(5, 'in', 'Gate-In-E');
+                            FetchDahuaDataChannel::dispatch(6, 'in', 'Gate-In-F');
+                            FetchDahuaDataChannel::dispatch(7, 'out', 'Gate-Out-A');
                             FetchDahuaDataChannel::dispatch(8, 'in', 'Gate-In-G');
 
                             echo "Fetch command executed at " . now() . "\n";

@@ -9,6 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Jobs\SendEntry;
 use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
 use App\Models\VisitorDetection;
@@ -153,7 +154,11 @@ class FetchDahuaDataChannel implements ShouldQueue
                 }
 
                 try {
-                    VisitorDetection::create($item);
+                    $visitor_data = VisitorDetection::create($item);
+
+                    // dispatch to send ML Api
+                    SendEntry::dispatch($visitor_data);
+
                     $saved_count++;
                     Log::info("Saved Visitor RecNo={$item['rec_no']}");
                 } catch (\Exception $e) {
