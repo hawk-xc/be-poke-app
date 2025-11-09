@@ -158,7 +158,7 @@ class FetchDahuaDataChannel implements ShouldQueue
 
                     // dispatch to send ML Api
                     // SendEntry::dispatch($visitor_data);
-                    SendEntry::dispatchSync($visitor_data);
+                    SendEntry::dispatchSync($visitor_data->id);
 
                     $saved_count++;
                     Log::info("Saved Visitor RecNo={$item['rec_no']}");
