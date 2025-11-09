@@ -24,6 +24,8 @@ class RoleController extends Controller
     {
         $this->middleware(['permission:roles:list'])->only(['index', 'show']);
         $this->middleware(['permission:roles:create'])->only(['store']);
+        $this->middleware(['permission:roles:update'])->only(['update']);
+        $this->middleware(['permission:roles:delete'])->only(['destroy']);
         $this->middleware(['permission:roles:assign-permission'])->only(['assignPermission']);
         
         $this->authRepository = $ar;
@@ -103,5 +105,35 @@ class RoleController extends Controller
         $role->load('permissions');
 
         return $this->responseSuccess($role, 'Permissions assigned successfully');
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $role = Role::find($id);
+
+        if (!$role) {
+            return $this->errorResponse(null, 'Role not found', 404);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255|unique:roles,name,' . $id
+        ]);
+
+        $role->update(['name' => $request->name]);
+
+        return $this->responseSuccess($role, 'Role updated successfully');
+    }
+
+    public function destroy(string $id)
+    {
+        $role = Role::find($id);
+
+        if (!$role) {
+            return $this->errorResponse(null, 'Role not found', 404);
+        }
+
+        $role->delete();
+
+        return $this->responseSuccess(null, 'Role deleted successfully');
     }
 }
