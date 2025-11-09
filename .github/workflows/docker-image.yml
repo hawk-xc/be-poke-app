@@ -1,0 +1,36 @@
+name: CI/CD Laravel Docker (Direct Build on Server)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            echo "🚀 Pulling latest changes..."
+            cd /var/www/your-laravel-folder
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "🛠 Building and restarting containers..."
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d --force-recreate
+
+            echo "🧹 Cleaning unused images..."
+            docker system prune -f
+
+            echo "✅ Deployment complete!"
