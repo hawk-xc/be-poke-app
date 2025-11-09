@@ -1,0 +1,121 @@
+version: "3.9"
+
+services:
+  # =====================================
+  # 🧩 Laravel Backend (Main API)
+  # =====================================
+  backend:
+    build: .
+    container_name: twb-be-app
+    restart: always
+    working_dir: /var/www
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DB_HOST: db
+    volumes:
+      - ./storage/app/public:/var/www/storage/app/public
+    depends_on:
+      - db
+    command: >
+      sh -c "
+        echo '🚀 Starting TWB Backend...' &&
+        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        if [ ! -d vendor ]; then
+          echo '📦 vendor not found, running composer install...';
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+        fi &&
+        php artisan storage:link || true &&
+        php artisan migrate --force &&
+        php artisan db:seed --class=PermissionSeeder --force &&
+        php artisan db:seed --class=UserSeeder --force &&
+        echo '🔥 Laravel API running on port 8000' &&
+        php artisan serve --host=0.0.0.0 --port=8000
+      "
+    networks:
+      - chronical-net
+
+  # =====================================
+  # ⚙️ Laravel Queue Worker
+  # =====================================
+  worker:
+    build: .
+    container_name: twb-be-worker
+    restart: always
+    working_dir: /var/www
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./storage/app/public:/var/www/storage/app/public
+    command: >
+      sh -c "
+        echo '⚙️ Starting Laravel Queue Worker...' &&
+        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        if [ ! -d vendor ]; then
+          echo '📦 vendor not found, running composer install...';
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+        fi &&
+        php artisan queue:work --sleep=3 --tries=3 --timeout=120
+      "
+    networks:
+      - chronical-net
+
+  # =====================================
+  # 📡 Dahua Event Listener
+  # =====================================
+  listener:
+    build: .
+    container_name: twb-be-listener
+    restart: always
+    working_dir: /var/www
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./storage/app/public:/var/www/storage/app/public
+    command: >
+      sh -c "
+        echo '📡 Starting Dahua Event Listener...' &&
+        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        if [ ! -d vendor ]; then
+          echo '📦 vendor not found, running composer install...';
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+        fi &&
+        php artisan dahua:face-detection-event-listener
+      "
+    networks:
+      - chronical-net
+
+  # =====================================
+  # 🐬 MySQL Database
+  # =====================================
+  db:
+    image: mysql:8.0
+    container_name: twb-be-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: sql_api_andromed
+      MYSQL_USER: sql_api_andromed
+      MYSQL_PASSWORD: 844ca871e95a58
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - chronical-net
+
+networks:
+  chronical-net:
+    external: true
+
+volumes:
+  db_data:

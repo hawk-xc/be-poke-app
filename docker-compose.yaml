@@ -1,5 +1,12 @@
 version: "3.9"
 
+# Reusable volume list buat live sync kode
+x-code-sync: &code_sync
+  - ./:/var/www:cached   # kalau Linux bisa hapus :cached -> ./:/var/www
+  # cegah folder dependency di container ketiban isi host
+  - /var/www/vendor
+  - /var/www/node_modules
+
 services:
   # =====================================
   # 🧩 Laravel Backend (Main API)
@@ -16,24 +23,24 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
-      DB_HOST: db
-    volumes:
-      - ./storage/app/public:/var/www/storage/app/public
-    depends_on:
-      - db
+      DB_HOST: ${DB_HOST:-db}     # host DB (service name di compose lain)
+      DB_PORT: ${DB_PORT:-3306}
+    volumes: *code_sync
     command: >
       sh -c "
         echo '🚀 Starting TWB Backend...' &&
-        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
         if [ ! -d vendor ]; then
           echo '📦 vendor not found, running composer install...';
-          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+          composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
+        php artisan key:generate --force || true &&
         php artisan storage:link || true &&
-        php artisan migrate --force &&
-        php artisan db:seed --class=PermissionSeeder --force &&
-        php artisan db:seed --class=UserSeeder --force &&
-        echo '🔥 Laravel API running on port 8000' &&
+        php artisan migrate --force || true &&
+        echo '🔧 Fixing permissions...' &&
+        chown -R www-data:www-data storage bootstrap/cache &&
+        chmod -R ug+rw storage bootstrap/cache &&
+        echo '🔥 Laravel API running on :8000' &&
         php artisan serve --host=0.0.0.0 --port=8000
       "
     networks:
@@ -49,17 +56,17 @@ services:
     working_dir: /var/www
     env_file:
       - .env
-    depends_on:
-      - db
-    volumes:
-      - ./storage/app/public:/var/www/storage/app/public
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+    volumes: *code_sync
     command: >
       sh -c "
         echo '⚙️ Starting Laravel Queue Worker...' &&
-        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
         if [ ! -d vendor ]; then
           echo '📦 vendor not found, running composer install...';
-          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+          composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
         php artisan queue:work --sleep=3 --tries=3 --timeout=120
       "
@@ -76,46 +83,23 @@ services:
     working_dir: /var/www
     env_file:
       - .env
-    depends_on:
-      - db
-    volumes:
-      - ./storage/app/public:/var/www/storage/app/public
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+    volumes: *code_sync
     command: >
       sh -c "
         echo '📡 Starting Dahua Event Listener...' &&
-        until nc -z db 3306; do echo '⏳ Waiting for MySQL...'; sleep 3; done &&
+        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
         if [ ! -d vendor ]; then
           echo '📦 vendor not found, running composer install...';
-          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+          composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
         php artisan dahua:face-detection-event-listener
       "
     networks:
       - chronical-net
 
-  # =====================================
-  # 🐬 MySQL Database
-  # =====================================
-  db:
-    image: mysql:8.0
-    container_name: twb-be-db
-    restart: always
-    environment:
-      MYSQL_DATABASE: sql_api_andromed
-      MYSQL_USER: sql_api_andromed
-      MYSQL_PASSWORD: 844ca871e95a58
-      MYSQL_ROOT_PASSWORD: root
-    ports:
-      - "3306:3306"
-    command: --default-authentication-plugin=mysql_native_password
-    volumes:
-      - db_data:/var/lib/mysql
-    networks:
-      - chronical-net
-
 networks:
   chronical-net:
     external: true
-
-volumes:
-  db_data:
