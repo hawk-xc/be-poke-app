@@ -78,6 +78,7 @@ class GetEntry extends Command
                 // Update data "out"
                 $outRecord->update([
                     'embedding_id' => $embeddingId,
+                    'rec_no_in' => $recNoIn,
                     'is_matched' => true,
                     'status' => $recordStatus ?? false,
                     'duration' => $duration,
