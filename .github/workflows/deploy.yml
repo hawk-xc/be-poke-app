@@ -3,7 +3,7 @@ name: CI/CD Laravel Docker (Direct Build on Server)
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
@@ -21,16 +21,5 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             echo "🚀 Pulling latest changes..."
-            cd /var/www/your-laravel-folder
-            git fetch --all
-            git reset --hard origin/main
-
-            echo "🛠 Building and restarting containers..."
-            docker compose down
-            docker compose build --no-cache
-            docker compose up -d --force-recreate
-
-            echo "🧹 Cleaning unused images..."
-            docker system prune -f
-
-            echo "✅ Deployment complete!"
+            git pull origin master --rebase
+            /bin/bash /home/xlxtwc/Chronical_Project/twb-be/runner.sh
