@@ -32,7 +32,6 @@ class DashboardController extends Controller
         $start = now($timezone)->startOfDay();
         $end = now($timezone)->endOfDay();
 
-        // Jika ada parameter time (daily, monthly, yearly)
         if ($request->filled('time')) {
             switch ($request->time) {
                 case 'daily':
@@ -57,12 +56,9 @@ class DashboardController extends Controller
         // ambil semua data real-time
         $realTimeQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
 
-        $totalIn = $query->where('label', 'in')->count();
-        $totalOut = $query->where('label', 'out')->count();
-        $totalAll = $query->count();
-
-        // Visitor inside (tidak boleh minus)
-        $visitorInside = max(0, $totalIn - $totalOut);
+        $totalIn = $realTimeQuery->where('label', 'in')->count();
+        $totalOut = $realTimeQuery->where('label', 'out')->count();
+        $totalAll = $realTimeQuery->count();
 
         // GENDER
         $maleCount = $realTimeQuery->where('face_sex', 'Man')->count();
@@ -73,11 +69,11 @@ class DashboardController extends Controller
 
         // AGE DISTRIBUTION
         $ageCategories = [
-            '0-17' => $query->whereBetween('face_age', [0, 17])->count(),
-            '18-25' => $query->whereBetween('face_age', [18, 25])->count(),
-            '26-40' => $query->whereBetween('face_age', [26, 40])->count(),
-            '41-60' => $query->whereBetween('face_age', [41, 60])->count(),
-            '61+' => $query->where('face_age', '>=', 61)->count(),
+            '0-17' => $realTimeQuery->whereBetween('face_age', [0, 17])->count(),
+            '18-25' => $realTimeQuery->whereBetween('face_age', [18, 25])->count(),
+            '26-40' => $realTimeQuery->whereBetween('face_age', [26, 40])->count(),
+            '41-60' => $realTimeQuery->whereBetween('face_age', [41, 60])->count(),
+            '61+' => $realTimeQuery->where('face_age', '>=', 61)->count(),
         ];
 
         $agePercentages = [];
@@ -97,12 +93,13 @@ class DashboardController extends Controller
                 $start->copy()->setTime(7, 0),
                 $end->copy()->setTime(17, 59, 59)
             ])
-            ->where('label', 'in')
+            ->where('label', 'out') // hitung semua out, matched atau tidak
             ->groupBy('hour')
             ->orderBy('hour')
             ->pluck('count', 'hour')
             ->toArray();
 
+        // isi jam kosong dengan 0
         $hours = range(7, 17);
         $busyHours = collect($hours)->mapWithKeys(fn($h) => [$h => $busyHours[$h] ?? 0])->toArray();
 
@@ -112,18 +109,24 @@ class DashboardController extends Controller
         $realTimeData = [
             'total' => [
                 'all' => $totalAll,
-                'visitor_inside' => $visitorInside,
+                'visitor_inside' => $totalIn - $totalOut,
                 'visitor_in' => $totalIn,
                 'visitor_out' => $totalOut,
                 'length_of_visit' => $lengthOfVisit,
             ],
             'gender' => [
-                'male' => ['count' => $maleCount, 'percent' => $malePercent],
-                'female' => ['count' => $femaleCount, 'percent' => $femalePercent],
+                'male' => [
+                    'count' => $maleCount,
+                    'percent' => $malePercent
+                ],
+                'female' => [
+                    'count' => $femaleCount,
+                    'percent' => $femalePercent
+                ],
             ],
             'age_distribution' => [
                 'counts' => $ageCategories,
-                'percentages' => $agePercentages,
+                'percentages' => $agePercentages
             ],
             'busy_hours' => $busyHours,
             'filter' => [
