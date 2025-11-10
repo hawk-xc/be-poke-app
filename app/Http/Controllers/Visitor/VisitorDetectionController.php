@@ -122,14 +122,10 @@ class VisitorDetectionController extends Controller
         }
 
         // Filter by start_time & end_time
-        if ($request->filled('start_time') && $request->filled('end_time')) {
-            try {
-                $start = Carbon::parse($request->query('start_time'))->startOfSecond();
-                $end = Carbon::parse($request->query('end_time'))->endOfSecond();
-                $query->whereBetween('locale_time', [$start, $end]);
-            } catch (\Exception $e) {
-                return $this->responseError('Format waktu tidak valid.', 422);
-            }
+        if ($request->has('start_time') && $request->has('end_time')) {
+            $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'))->startOfDay();
+            $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'))->endOfDay();
+            $query->whereBetween('locale_time', [$start, $end]);
         } elseif ($request->filled('time')) {
             $now = Carbon::now();
             switch ($request->query('time')) {
