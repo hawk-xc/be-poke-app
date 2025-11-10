@@ -6,11 +6,13 @@ use App\Models\VisitorDetection;
 use App\Traits\ResponseTrait;
 use Illuminate\Http\Request;
 use App\Repositories\AuthRepository;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
     use ResponseTrait;
+
+    protected $timezone = 'Asia/Jakarta';
 
     protected AuthRepository $authRepository;
 
@@ -26,41 +28,34 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        // Default range: kemarin s/d hari ini
-        $start = now()->subDay()->startOfDay(); // kemarin
-        $end = now()->endOfDay(); // hari ini
+        $timezone = 'Asia/Jakarta'; // pastikan konsisten
+        $start = now($timezone)->startOfDay();
+        $end = now($timezone)->endOfDay();
 
         // Jika ada parameter time (daily, monthly, yearly)
         if ($request->filled('time')) {
             switch ($request->time) {
                 case 'daily':
-                    $start = now()->startOfDay();
-                    $end = now()->endOfDay();
+                    $start = now($timezone)->startOfDay();
+                    $end = now($timezone)->endOfDay();
                     break;
                 case 'monthly':
-                    $start = now()->startOfMonth();
-                    $end = now()->endOfMonth();
+                    $start = now($timezone)->startOfMonth();
+                    $end = now($timezone)->endOfMonth();
                     break;
                 case 'yearly':
-                    $start = now()->startOfYear();
-                    $end = now()->endOfYear();
+                    $start = now($timezone)->startOfYear();
+                    $end = now($timezone)->endOfYear();
+                    break;
+                default:
+                    $start = now($timezone)->startOfDay();
+                    $end = now($timezone)->endOfDay();
                     break;
             }
         }
 
-        // Jika user memberikan custom start_date / end_date
-        if ($request->filled('start_date')) {
-            $start = Carbon::parse($request->start_date)->startOfDay();
-        }
-
-        if ($request->filled('end_date')) {
-            $end = Carbon::parse($request->end_date)->endOfDay();
-        }
-
-        // =========================
-        // FILTERED DATA
-        // =========================
-        $query = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
+        // ambil semua data real-time
+        $realTimeQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
 
         $totalIn = $query->where('label', 'in')->count();
         $totalOut = $query->where('label', 'out')->count();
@@ -69,14 +64,14 @@ class DashboardController extends Controller
         // Visitor inside (tidak boleh minus)
         $visitorInside = max(0, $totalIn - $totalOut);
 
-        // Gender
-        $maleCount = $query->where('face_sex', 'Man')->count();
-        $femaleCount = $query->where('face_sex', 'Woman')->count();
+        // GENDER
+        $maleCount = $realTimeQuery->where('face_sex', 'Man')->count();
+        $femaleCount = $realTimeQuery->where('face_sex', 'Woman')->count();
 
         $malePercent = $totalAll > 0 ? round(($maleCount / $totalAll) * 100, 2) : 0;
         $femalePercent = $totalAll > 0 ? round(($femaleCount / $totalAll) * 100, 2) : 0;
 
-        // Age distribution
+        // AGE DISTRIBUTION
         $ageCategories = [
             '0-17' => $query->whereBetween('face_age', [0, 17])->count(),
             '18-25' => $query->whereBetween('face_age', [18, 25])->count(),
@@ -90,28 +85,30 @@ class DashboardController extends Controller
             $agePercentages[$range] = $totalAll > 0 ? round(($count / $totalAll) * 100, 2) : 0;
         }
 
-        // Average length of visit
-        $lengthOfVisit = $query
+        // RATA-RATA LAMA KUNJUNGAN
+        $lengthOfVisit = $realTimeQuery
             ->where('label', 'out')
-            ->where('is_matched', true)
             ->avg('duration');
         $lengthOfVisit = $lengthOfVisit ? round($lengthOfVisit, 2) : 0;
 
-        // Busy hours (07–17)
-        $busyHours = [];
-        for ($hour = 7; $hour <= 17; $hour++) {
-            $busyHours[$hour] = $query
-                ->filter(function ($item) use ($hour) {
-                    return Carbon::parse($item->locale_time)->hour === $hour
-                        && $item->label === 'out'
-                        && $item->is_matched === true;
-                })
-                ->count();
-        }
+        // === PEAK HOUR FIX ===
+        $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
+            ->whereBetween('locale_time', [
+                $start->copy()->setTime(7, 0),
+                $end->copy()->setTime(17, 59, 59)
+            ])
+            ->where('label', 'in')
+            ->groupBy('hour')
+            ->orderBy('hour')
+            ->pluck('count', 'hour')
+            ->toArray();
 
-        // =========================
-        // RESPONSE
-        // =========================
+        $hours = range(7, 17);
+        $busyHours = collect($hours)->mapWithKeys(fn($h) => [$h => $busyHours[$h] ?? 0])->toArray();
+
+        // =======================
+        // SUSUN HASIL
+        // =======================
         $realTimeData = [
             'total' => [
                 'all' => $totalAll,
