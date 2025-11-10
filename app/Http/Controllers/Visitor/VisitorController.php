@@ -28,7 +28,7 @@ class VisitorController extends Controller
         $this->middleware(['permission:visitor:create'])->only('store');
         $this->middleware(['permission:visitor:edit'])->only('update');
         $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
-        
+
         $this->authRepository = $ar;
     }
 
@@ -39,16 +39,17 @@ class VisitorController extends Controller
     {
         $query = Visitor::query();
 
+        // Trashed filter
         if ($request->query('trashed') === 'with') {
             $query->withTrashed();
         } elseif ($request->query('trashed') === 'only') {
             $query->onlyTrashed();
         }
 
+        // Search filter
         if ($request->has('search') && !empty($request->query('search'))) {
             $search = $request->query('search');
             $searchBy = $request->query('search_by');
-
             $searchableColumns = ['name', 'gender', 'phone_number', 'address', 'person_group', 'sex', 'similarity', 'emotion', 'mask', 'glasses', 'beard', 'attractive', 'mouth', 'eye', 'strabismus', 'nation', 'task_name'];
 
             if (!empty($searchBy) && in_array($searchBy, $searchableColumns)) {
@@ -62,6 +63,7 @@ class VisitorController extends Controller
             }
         }
 
+        // Filters
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
         foreach ($filterableColumns as $column) {
             if ($request->has($column) && !empty($request->query($column))) {
@@ -69,6 +71,7 @@ class VisitorController extends Controller
             }
         }
 
+        // Time filter
         if ($request->has('start_time') && $request->has('end_time')) {
             $query->whereBetween('start_time', [$request->query('start_time'), $request->query('end_time')]);
         }
@@ -82,9 +85,7 @@ class VisitorController extends Controller
                     $query->whereDate('start_time', $now->toDateString());
                     break;
                 case 'week':
-                    $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY);
-                    $endOfWeek = $now->copy()->endOfWeek(Carbon::SUNDAY);
-                    $query->whereBetween('start_time', [$startOfWeek, $endOfWeek]);
+                    $query->whereBetween('start_time', [$now->copy()->startOfWeek(Carbon::MONDAY), $now->copy()->endOfWeek(Carbon::SUNDAY)]);
                     break;
                 case 'month':
                     $query->whereBetween('start_time', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()]);
@@ -95,11 +96,20 @@ class VisitorController extends Controller
             }
         }
 
+        // Match filter
+        if ($request->query('match') === 'true') {
+            $query->where('label', 'out')
+                ->where('is_registered', true)
+                ->where('is_matched', true);
+        }
+
+        // Count
         if ($request->query('sum') === 'count_data') {
             $count = $query->count();
             return $this->responseSuccess(['count' => $count], 'Visitors Counted Successfully!');
         }
 
+        // Sorting
         if ($request->has('sort_by') && !empty($request->query('sort_by'))) {
             $sortBy = $request->query('sort_by');
             $sortDir = $request->query('sort_dir', 'asc');
@@ -108,6 +118,7 @@ class VisitorController extends Controller
             $query->latest();
         }
 
+        // Pagination
         $perPage = $request->query('per_page', 15);
         $visitors = $query->paginate($perPage);
 

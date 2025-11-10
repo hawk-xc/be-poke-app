@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Visitor;
 
 use Carbon\Carbon;
+use App\Models\VisitorQueue;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
 use Illuminate\Http\Response;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Repositories\AuthRepository;
 use Illuminate\Database\Eloquent\Builder;
 use App\Models\VisitorDetection as Visitor;
+use App\Models\VisitorDetection;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class VisitorDetectionController extends Controller
@@ -67,32 +69,43 @@ class VisitorDetectionController extends Controller
     {
         $query = Visitor::query();
 
-        if ($request->has('data_status') && $request->query('data_status') === 'with_embedding') {
+        // Filter untuk embedding dan registered
+        if ($request->query('data_status') === 'with_embedding') {
+            $query->whereNotNull('embedding_id')
+                ->where('is_registered', true);
+        }
+
+        // Filter label in/out
+        if ($request->has('label')) {
+            $label = $request->query('label');
+            if (in_array($label, ['in', 'out'])) {
+                $query->where('label', $label);
+            }
+        }
+
+        if ($request->has('match') && filter_var($request->query('match'), FILTER_VALIDATE_BOOLEAN)) {
+            $query->where('is_matched', 1);
+            $query->where('is_registered', 1);
             $query->whereNotNull('embedding_id');
+            $query->whereNotNull('rec_no_in');
         }
 
-        if ($request->has('label') && $request->query('label') === 'in') {
-            $query->where('label', 'in');
-        }
-
-        if ($request->has('label') && $request->query('label') === 'out') {
-            $query->where('label', 'out');
-        }
-
+        // Filter soft delete
         if ($request->query('trashed') === 'with') {
             $query->withTrashed();
         } elseif ($request->query('trashed') === 'only') {
             $query->onlyTrashed();
         }
 
-        if ($request->has('search') && !empty($request->query('search'))) {
+        // Filter search
+        if ($request->filled('search')) {
             $search = $request->query('search');
             $searchBy = $request->query('search_by');
 
             if (!empty($searchBy) && in_array($searchBy, $this->searchableColumns)) {
                 $query->where($searchBy, 'like', "%{$search}%");
             } else {
-                $query->where(function (Builder $q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     foreach ($this->searchableColumns as $col) {
                         $q->orWhere($col, 'like', "%{$search}%");
                     }
@@ -100,52 +113,56 @@ class VisitorDetectionController extends Controller
             }
         }
 
+        // Filter additional columns
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
         foreach ($filterableColumns as $column) {
-            if ($request->has($column) && !empty($request->query($column))) {
+            if ($request->filled($column)) {
                 $query->where($column, $request->query($column));
             }
         }
 
-        if ($request->has('start_time') && $request->has('end_time')) {
-            $query->whereBetween('start_time', [$request->query('start_time'), $request->query('end_time')]);
-        }
-
-        if ($request->has('time')) {
-            $time = $request->query('time');
+        // Filter by start_time & end_time
+        if ($request->filled('start_time') && $request->filled('end_time')) {
+            try {
+                $start = Carbon::parse($request->query('start_time'))->startOfSecond();
+                $end = Carbon::parse($request->query('end_time'))->endOfSecond();
+                $query->whereBetween('locale_time', [$start, $end]);
+            } catch (\Exception $e) {
+                return $this->responseError('Format waktu tidak valid.', 422);
+            }
+        } elseif ($request->filled('time')) {
             $now = Carbon::now();
-
-            switch ($time) {
+            switch ($request->query('time')) {
                 case 'today':
                     $query->whereDate('locale_time', $now->toDateString());
                     break;
                 case 'week':
-                    $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY);
-                    $endOfWeek = $now->copy()->endOfWeek(Carbon::SUNDAY);
-                    $query->whereBetween('locale_time', [$startOfWeek, $endOfWeek]);
+                    $query->whereBetween('locale_time', [$now->startOfWeek(), $now->endOfWeek()]);
                     break;
                 case 'month':
-                    $query->whereBetween('locale_time', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()]);
+                    $query->whereBetween('locale_time', [$now->startOfMonth(), $now->endOfMonth()]);
                     break;
                 case 'year':
-                    $query->whereBetween('locale_time', [$now->copy()->startOfYear(), $now->copy()->endOfYear()]);
+                    $query->whereBetween('locale_time', [$now->startOfYear(), $now->endOfYear()]);
                     break;
             }
         }
 
+        // Sum/count
         if ($request->query('sum') === 'count_data') {
             $count = $query->count();
             return $this->responseSuccess(['count' => $count], 'Visitors Counted Successfully!');
         }
 
-        if ($request->has('sort_by') && !empty($request->query('sort_by'))) {
-            $sortBy = $request->query('sort_by');
+        // Sorting
+        if ($request->filled('sort_by')) {
             $sortDir = $request->query('sort_dir', 'asc');
-            $query->orderBy($sortBy, $sortDir);
+            $query->orderBy($request->query('sort_by'), $sortDir);
         } else {
             $query->latest();
         }
 
+        // Pagination
         $perPage = $request->query('per_page', 15);
         $visitors = $query->paginate($perPage);
 
@@ -323,10 +340,56 @@ class VisitorDetectionController extends Controller
                 'visitors_out' => $labelOut,
                 'visit_durations' => $inOutData,
             ];
-            
+
             return $this->responseSuccess($data, 'Report Fetched Successfully!');
         } catch (\Exception $err) {
             return $this->responseError(null, $err->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    public function getQueues(Request $request): JsonResponse
+    {
+        $query = VisitorQueue::query();
+
+        if ($request->has('label')) {
+            $label = $request->query('label');
+            if (in_array($label, ['in', 'out'])) {
+                $query->where('label', $label);
+            }
+        }
+
+        if ($request->has('status') && !empty($request->query('status'))) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->has('search') && !empty($request->query('search'))) {
+            $search = $request->query('search');
+            $query->where('rec_no', 'like', "%{$search}%");
+        }
+
+        if ($request->has('sort_by') && !empty($request->query('sort_by'))) {
+            $sortBy = $request->query('sort_by');
+            $sortDir = $request->query('sort_dir', 'asc');
+            $query->orderBy($sortBy, $sortDir);
+        } else {
+            $query->latest('id');
+        }
+
+        $perPage = $request->query('per_page', 15);
+        $queues = $query->paginate($perPage);
+
+        return $this->responseSuccess($queues, 'Visitor Queues Fetched Successfully!');
+    }
+
+    public function getMatchedData(Request $request): JsonResponse
+    {
+        $rec_no = $request->query('rec_no');
+        $visitorOut = VisitorDetection::select(['rec_no', 'rec_no_in'])->where('rec_no', $rec_no)->first();
+        $visitorIn = VisitorDetection::where('rec_no', $visitorOut->rec_no_in)->first();
+
+        return $this->responseSuccess([
+            'visitor_out' => $visitorOut,
+            'visitor_in' => $visitorIn,
+        ], 'Matched Data Fetched Successfully!');
     }
 }

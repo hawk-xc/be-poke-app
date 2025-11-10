@@ -58,4 +58,6 @@ Route::group([
     Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
     Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
     Route::get('visitors/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
+    Route::get('visitors/queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
+    Route::get('visitor/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
 });
