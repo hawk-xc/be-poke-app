@@ -26,9 +26,9 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        // Default range: hari ini
-        $start = now()->startOfDay();
-        $end = now()->endOfDay();
+        // Default range: kemarin s/d hari ini
+        $start = now()->subDay()->startOfDay(); // kemarin
+        $end = now()->endOfDay(); // hari ini
 
         // Jika ada parameter time (daily, monthly, yearly)
         if ($request->filled('time')) {
@@ -48,14 +48,17 @@ class DashboardController extends Controller
             }
         }
 
-        // Jika user memberikan custom start_date & end_date
-        if ($request->filled('start_date') && $request->filled('end_date')) {
+        // Jika user memberikan custom start_date / end_date
+        if ($request->filled('start_date')) {
             $start = Carbon::parse($request->start_date)->startOfDay();
+        }
+
+        if ($request->filled('end_date')) {
             $end = Carbon::parse($request->end_date)->endOfDay();
         }
 
         // =========================
-        // REAL-TIME / FILTERED DATA
+        // FILTERED DATA
         // =========================
         $query = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
 
@@ -107,7 +110,7 @@ class DashboardController extends Controller
         }
 
         // =========================
-        // DATA RESPONSE
+        // RESPONSE
         // =========================
         $realTimeData = [
             'total' => [
@@ -123,7 +126,7 @@ class DashboardController extends Controller
             ],
             'age_distribution' => [
                 'counts' => $ageCategories,
-                'percentages' => $agePercentages
+                'percentages' => $agePercentages,
             ],
             'busy_hours' => $busyHours,
             'filter' => [
