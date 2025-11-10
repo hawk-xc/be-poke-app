@@ -83,11 +83,19 @@ class VisitorDetectionController extends Controller
             }
         }
 
-        if ($request->has('match') && filter_var($request->query('match'), FILTER_VALIDATE_BOOLEAN)) {
-            $query->where('is_matched', 1);
-            $query->where('is_registered', 1);
-            $query->whereNotNull('embedding_id');
-            $query->whereNotNull('rec_no_in');
+        if ($request->has('is_registered')) {
+            if ($request->query('is_registered') === 'true') {
+                $query->where('is_registered', true);
+                $query->whereNotNull('embedding_id');
+            }
+        }
+
+        if ($request->has('match')) {
+            if ($request->query('match') === 'true') {
+                $query->where('is_matched', true);
+                $query->where('is_registered', true);
+                $query->where('label', 'out');
+            }
         }
 
         // Filter soft delete
@@ -377,10 +385,9 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($queues, 'Visitor Queues Fetched Successfully!');
     }
 
-    public function getMatchedData(Request $request): JsonResponse
+    public function getMatchedData(string $id): JsonResponse
     {
-        $rec_no = $request->query('rec_no');
-        $visitorOut = VisitorDetection::select(['rec_no', 'rec_no_in'])->where('rec_no', $rec_no)->first();
+        $visitorOut = VisitorDetection::find($id);
         $visitorIn = VisitorDetection::where('rec_no', $visitorOut->rec_no_in)->first();
 
         return $this->responseSuccess([
