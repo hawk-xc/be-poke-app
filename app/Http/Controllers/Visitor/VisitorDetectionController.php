@@ -67,42 +67,19 @@ class VisitorDetectionController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Visitor::query();
+        $baseQuery = Visitor::query();
 
-        // Filter untuk embedding dan registered
+        // Filter embedding & registered
         if ($request->query('data_status') === 'with_embedding') {
-            $query->whereNotNull('embedding_id')
+            $baseQuery->whereNotNull('embedding_id')
                 ->where('is_registered', true);
-        }
-
-        // Filter label in/out
-        if ($request->has('label')) {
-            $label = $request->query('label');
-            if (in_array($label, ['in', 'out'])) {
-                $query->where('label', $label);
-            }
-        }
-
-        if ($request->has('is_registered')) {
-            if ($request->query('is_registered') === 'true') {
-                $query->where('is_registered', true);
-                $query->whereNotNull('embedding_id');
-            }
-        }
-
-        if ($request->has('match')) {
-            if ($request->query('match') === 'true') {
-                $query->where('is_matched', true);
-                $query->where('is_registered', true);
-                $query->where('label', 'out');
-            }
         }
 
         // Filter soft delete
         if ($request->query('trashed') === 'with') {
-            $query->withTrashed();
+            $baseQuery->withTrashed();
         } elseif ($request->query('trashed') === 'only') {
-            $query->onlyTrashed();
+            $baseQuery->onlyTrashed();
         }
 
         // Filter search
@@ -111,9 +88,9 @@ class VisitorDetectionController extends Controller
             $searchBy = $request->query('search_by');
 
             if (!empty($searchBy) && in_array($searchBy, $this->searchableColumns)) {
-                $query->where($searchBy, 'like', "%{$search}%");
+                $baseQuery->where($searchBy, 'like', "%{$search}%");
             } else {
-                $query->where(function ($q) use ($search) {
+                $baseQuery->where(function ($q) use ($search) {
                     foreach ($this->searchableColumns as $col) {
                         $q->orWhere($col, 'like', "%{$search}%");
                     }
@@ -121,57 +98,104 @@ class VisitorDetectionController extends Controller
             }
         }
 
+        if ($request->query('visitor_image') === 'true') {
+            $baseQuery->whereNotNull('person_pic_url');
+        } elseif ($request->query('visitor_image') === 'false') {
+            $baseQuery->whereNull('person_pic_url');
+        }
+
         // Filter additional columns
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
         foreach ($filterableColumns as $column) {
             if ($request->filled($column)) {
-                $query->where($column, $request->query($column));
+                $baseQuery->where($column, $request->query($column));
             }
         }
 
-        // Filter by start_time & end_time
+        // Filter waktu
+        $now = Carbon::now();
         if ($request->has('start_time') && $request->has('end_time')) {
-            $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'))->startOfDay();
-            $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'))->endOfDay();
-            $query->whereBetween('locale_time', [$start, $end]);
+            $start = Carbon::parse($request->query('start_time'))->startOfSecond();
+            $end = Carbon::parse($request->query('end_time'))->endOfSecond();
+            $baseQuery->whereBetween('locale_time', [$start, $end]);
         } elseif ($request->filled('time')) {
-            $now = Carbon::now();
             switch ($request->query('time')) {
                 case 'today':
-                    $query->whereDate('locale_time', $now->toDateString());
+                    $baseQuery->whereDate('locale_time', $now->toDateString());
                     break;
                 case 'week':
-                    $query->whereBetween('locale_time', [$now->startOfWeek(), $now->endOfWeek()]);
+                    $baseQuery->whereBetween('locale_time', [$now->startOfWeek(), $now->endOfWeek()]);
                     break;
                 case 'month':
-                    $query->whereBetween('locale_time', [$now->startOfMonth(), $now->endOfMonth()]);
+                    $baseQuery->whereBetween('locale_time', [$now->startOfMonth(), $now->endOfMonth()]);
                     break;
                 case 'year':
-                    $query->whereBetween('locale_time', [$now->startOfYear(), $now->endOfYear()]);
+                    $baseQuery->whereBetween('locale_time', [$now->startOfYear(), $now->endOfYear()]);
                     break;
             }
         }
 
-        // Sum/count
+        // SUM / COUNT
         if ($request->query('sum') === 'count_data') {
-            $count = $query->count();
+            $count = (clone $baseQuery)->count();
             return $this->responseSuccess(['count' => $count], 'Visitors Counted Successfully!');
+        }
+
+        // ==============
+        // MATCH HANDLER
+        // ==============
+        if ($request->has('match') && $request->query('match') === 'true') {
+            $queryIn = (clone $baseQuery)
+                ->where('is_matched', true)
+                ->where('is_registered', true)
+                ->where('label', 'in');
+
+            $queryOut = (clone $baseQuery)
+                ->where('is_matched', true)
+                ->where('is_registered', true)
+                ->where('label', 'out');
+
+            // Pagination
+            $perPage = $request->query('per_page', 15);
+            $dataIn = $queryIn->paginate($perPage, ['*'], 'in_page');
+            $dataOut = $queryOut->paginate($perPage, ['*'], 'out_page');
+
+            return $this->responseSuccess([
+                'data_in' => $dataIn,
+                'data_out' => $dataOut
+            ], 'Matched Visitors (IN/OUT) Fetched Successfully!');
+        }
+
+        // ============================
+        // Jika tidak match=true
+        // ============================
+        if ($request->has('label')) {
+            $label = $request->query('label');
+            if (in_array($label, ['in', 'out'])) {
+                $baseQuery->where('label', $label);
+            }
+        }
+
+        if ($request->has('is_registered') && $request->query('is_registered') === 'true') {
+            $baseQuery->where('is_registered', true)
+                ->whereNotNull('embedding_id');
         }
 
         // Sorting
         if ($request->filled('sort_by')) {
             $sortDir = $request->query('sort_dir', 'asc');
-            $query->orderBy($request->query('sort_by'), $sortDir);
+            $baseQuery->orderBy($request->query('sort_by'), $sortDir);
         } else {
-            $query->latest();
+            $baseQuery->latest();
         }
 
-        // Pagination
+        // Pagination biasa
         $perPage = $request->query('per_page', 15);
-        $visitors = $query->paginate($perPage);
+        $visitors = $baseQuery->paginate($perPage);
 
         return $this->responseSuccess($visitors, 'Visitors Fetched Successfully!');
     }
+
 
     /**
      * Store a newly created resource in storage.

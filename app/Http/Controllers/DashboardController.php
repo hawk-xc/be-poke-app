@@ -28,46 +28,53 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        $timezone = 'Asia/Jakarta'; // pastikan konsisten
+        $timezone = $this->timezone;
         $start = now($timezone)->startOfDay();
         $end = now($timezone)->endOfDay();
+        $timeLabel = 'daily'; // default
 
         if ($request->filled('time')) {
             switch ($request->time) {
-                case 'daily':
-                    $start = now($timezone)->startOfDay();
-                    $end = now($timezone)->endOfDay();
-                    break;
                 case 'monthly':
                     $start = now($timezone)->startOfMonth();
                     $end = now($timezone)->endOfMonth();
+                    $timeLabel = 'monthly';
                     break;
                 case 'yearly':
                     $start = now($timezone)->startOfYear();
                     $end = now($timezone)->endOfYear();
+                    $timeLabel = 'yearly';
                     break;
                 default:
                     $start = now($timezone)->startOfDay();
                     $end = now($timezone)->endOfDay();
+                    $timeLabel = 'daily';
                     break;
             }
         }
 
-        // ambil semua data real-time
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            try {
+                $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
+                $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
+                $timeLabel = 'custom';
+            } catch (\Exception $e) {
+                return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 422);
+            }
+        }
+
         $realTimeQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
 
         $totalIn = $realTimeQuery->where('label', 'in')->count();
         $totalOut = $realTimeQuery->where('label', 'out')->count();
         $totalAll = $realTimeQuery->count();
 
-        // GENDER
         $maleCount = $realTimeQuery->where('face_sex', 'Man')->count();
         $femaleCount = $realTimeQuery->where('face_sex', 'Woman')->count();
 
         $malePercent = $totalAll > 0 ? round(($maleCount / $totalAll) * 100, 2) : 0;
         $femalePercent = $totalAll > 0 ? round(($femaleCount / $totalAll) * 100, 2) : 0;
 
-        // AGE DISTRIBUTION
         $ageCategories = [
             '0-17' => $realTimeQuery->whereBetween('face_age', [0, 17])->count(),
             '18-25' => $realTimeQuery->whereBetween('face_age', [18, 25])->count(),
@@ -82,29 +89,27 @@ class DashboardController extends Controller
         }
 
         // RATA-RATA LAMA KUNJUNGAN
-        $lengthOfVisit = $realTimeQuery
-            ->where('label', 'out')
-            ->avg('duration');
+        $lengthOfVisit = $realTimeQuery->where('label', 'out')->avg('duration');
         $lengthOfVisit = $lengthOfVisit ? round($lengthOfVisit, 2) : 0;
 
-        // === PEAK HOUR FIX ===
+        // PEAK HOURS (07.00 - 17.59)
         $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
             ->whereBetween('locale_time', [
                 $start->copy()->setTime(7, 0),
-                $end->copy()->setTime(17, 59, 59)
+                $end->copy()->setTime(17, 59, 59),
             ])
-            ->where('label', 'out') // hitung semua out, matched atau tidak
+            ->where('label', 'out')
             ->groupBy('hour')
             ->orderBy('hour')
             ->pluck('count', 'hour')
             ->toArray();
 
-        // isi jam kosong dengan 0
+        // Isi jam kosong dengan 0
         $hours = range(7, 17);
         $busyHours = collect($hours)->mapWithKeys(fn($h) => [$h => $busyHours[$h] ?? 0])->toArray();
 
         // =======================
-        // SUSUN HASIL
+        // SUSUN HASIL RESPONSE
         // =======================
         $realTimeData = [
             'total' => [
@@ -117,26 +122,27 @@ class DashboardController extends Controller
             'gender' => [
                 'male' => [
                     'count' => $maleCount,
-                    'percent' => $malePercent
+                    'percent' => $malePercent,
                 ],
                 'female' => [
                     'count' => $femaleCount,
-                    'percent' => $femalePercent
+                    'percent' => $femalePercent,
                 ],
             ],
             'age_distribution' => [
                 'counts' => $ageCategories,
-                'percentages' => $agePercentages
+                'percentages' => $agePercentages,
             ],
             'busy_hours' => $busyHours,
             'filter' => [
-                'start_date' => $start->toDateString(),
-                'end_date' => $end->toDateString(),
+                'start_time' => $start->toDateTimeString(),
+                'end_time' => $end->toDateTimeString(),
             ],
         ];
 
         return $this->responseSuccess([
             'realtime_data' => $realTimeData,
+            'time' => $timeLabel,
         ], 'Dashboard Statistic Fetched Successfully!');
     }
 }
