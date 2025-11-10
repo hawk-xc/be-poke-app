@@ -59,7 +59,7 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         try {
-            $data = $request->only('name', 'email', 'password', 'password_confirmation');
+            $data = $request->only('username', 'firstname', 'lastname', 'name', 'email', 'password', 'password_confirmation');
             $user = $this->authRepository->register($data);
 
             if ($user && $token = $this->guard()->attempt($request->only('email', 'password'))) {
@@ -90,15 +90,30 @@ class AuthController extends Controller
             $user = $this->guard()->user();
 
             $request->validate([
-                'name'   => 'sometimes|string|max:255',
-                'email'  => 'sometimes|email|unique:users,email,' . $user->id,
-                'avatar' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
+                'name'      => 'sometimes|string|max:255',
+                'username'  => 'sometimes|string|max:255|unique:users,username,' . $user->id,
+                'firstname' => 'sometimes|string|max:255',
+                'lastname'  => 'sometimes|string|max:255', 
+                'email'     => 'sometimes|email|unique:users,email,' . $user->id,
+                'avatar'    => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             ]);
 
             $this->responseSuccess($request->all(), 'request!');
 
             if ($request->filled('name')) {
                 $user->name = $request->name;
+            }
+
+            if ($request->filled('username')) {
+                $user->username = $request->username;
+            }
+
+            if ($request->filled('firstname')) {
+                $user->firstname = $request->firstname;
+            }
+
+            if ($request->filled('lastname')) {
+                $user->lastname = $request->lastname;
             }
 
             if ($request->filled('email')) {

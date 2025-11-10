@@ -58,6 +58,9 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
+            'username' => 'required|string|max:255|unique:users',
+            'firstname' => 'required|string|max:255',
+            'lastname' => 'nullable|string|max:255',
         ]);
 
         DB::beginTransaction();
@@ -66,6 +69,10 @@ class UserController extends Controller
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
+                'username' => $request->username,
+                'firstname' => $request->firstname,
+                'lastname' => $request->lastname,
+                'fullname' => $request->firstname . ' ' . $request->lastname,
             ]);
             DB::commit();
             return $this->responseSuccess($user, 'User created successfully');
@@ -91,7 +98,7 @@ class UserController extends Controller
             return $this->responseError(null, 'User not found', 404);
         }
 
-        $data = array_filter($request->only(['name', 'email', 'password']), function ($value) {
+        $data = array_filter($request->only(['name', 'email', 'password', 'username', 'firstname', 'lastname']), function ($value) {
             return !is_null($value) && $value !== '';
         });
 
@@ -109,12 +116,27 @@ class UserController extends Controller
         if (array_key_exists('password', $data)) {
             $rules['password'] = 'string|min:8';
         }
+        if (array_key_exists('username', $data)) {
+            $rules['username'] = 'string|max:255|unique:users,username,' . $id;
+        }
+        if (array_key_exists('firstname', $data)) {
+            $rules['firstname'] = 'string|max:255';
+        }
+        if (array_key_exists('lastname', $data)) {
+            $rules['lastname'] = 'nullable|string|max:255';
+        }
         $request->validate($rules);
 
         DB::beginTransaction();
         try {
             if (isset($data['password'])) {
                 $data['password'] = Hash::make($data['password']);
+            }
+
+            if (isset($data['firstname']) || isset($data['lastname'])) {
+                $firstname = $data['firstname'] ?? $user->firstname;
+                $lastname = $data['lastname'] ?? $user->lastname;
+                $data['fullname'] = $firstname . ' ' . $lastname;
             }
 
             $user->fill($data);

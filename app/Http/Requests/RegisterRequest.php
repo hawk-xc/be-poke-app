@@ -13,9 +13,12 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'     => 'required|string|max:50',
-            'email'    => 'required|max:255|email|unique:users',
-            'password' => 'required|confirmed',
+            'name'      => 'required|string|max:50',
+            'email'     => 'required|max:255|email|unique:users',
+            'password'  => 'required|confirmed',
+            'username'  => 'required|string|max:255|unique:users',
+            'firstname' => 'required|string|max:255',
+            'lastname'  => 'nullable|string|max:255',
         ];
     }
 
@@ -41,6 +44,9 @@ class RegisterRequest extends FormRequest
             'email.required'    => 'Please give your email',
             'email.unique'      => 'User already exists by this email, please try with another email.',
             'password.required' => 'Please give your password',
+            'username.required' => 'Please give your username',
+            'username.unique'   => 'Username already exists, please try with another username.',
+            'firstname.required' => 'Please give your first name',
         ];
     }
 }
