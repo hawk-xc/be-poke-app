@@ -196,7 +196,6 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($visitors, 'Visitors Fetched Successfully!');
     }
 
-
     /**
      * Store a newly created resource in storage.
      */
@@ -409,7 +408,7 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($queues, 'Visitor Queues Fetched Successfully!');
     }
 
-    public function getMatchedData(string $id): JsonResponse
+    public function getMatch(string $id): JsonResponse
     {
         $visitorOut = VisitorDetection::find($id);
         $visitorIn = VisitorDetection::where('rec_no', $visitorOut->rec_no_in)->first();
@@ -418,5 +417,107 @@ class VisitorDetectionController extends Controller
             'visitor_out' => $visitorOut,
             'visitor_in' => $visitorIn,
         ], 'Matched Data Fetched Successfully!');
+    }
+
+    public function getMatchedData(Request $request): JsonResponse
+    {
+        $query = VisitorDetection::query();
+
+        if ($request->query('data_status') === 'with_embedding') {
+            $query->whereNotNull('embedding_id')
+                ->where('is_registered', true);
+        }
+
+        if ($request->query('trashed') === 'with') {
+            $query->withTrashed();
+        } elseif ($request->query('trashed') === 'only') {
+            $query->onlyTrashed();
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $searchBy = $request->query('search_by');
+            $searchableColumns = ['name', 'event_type', 'gate_name', 'face_sex', 'emotion'];
+            if (!empty($searchBy) && in_array($searchBy, $searchableColumns)) {
+                $query->where($searchBy, 'like', "%{$search}%");
+            } else {
+                $query->where(function ($q) use ($search, $searchableColumns) {
+                    foreach ($searchableColumns as $col) {
+                        $q->orWhere($col, 'like', "%{$search}%");
+                    }
+                });
+            }
+        }
+
+        if ($request->query('visitor_image') === 'true') {
+            $query->whereNotNull('person_pic_url');
+        } elseif ($request->query('visitor_image') === 'false') {
+            $query->whereNull('person_pic_url');
+        }
+
+        $filterableColumns = ['name', 'face_sex', 'gate_name', 'event_type', 'emotion'];
+        foreach ($filterableColumns as $column) {
+            if ($request->filled($column)) {
+                $query->where($column, $request->query($column));
+            }
+        }
+
+        $now = Carbon::now();
+        if ($request->has('start_time') && $request->has('end_time')) {
+            $start = Carbon::parse($request->query('start_time'))->startOfSecond();
+            $end = Carbon::parse($request->query('end_time'))->endOfSecond();
+            $query->whereBetween('locale_time', [$start, $end]);
+        } elseif ($request->filled('time')) {
+            switch ($request->query('time')) {
+                case 'today':
+                    $query->whereDate('locale_time', $now->toDateString());
+                    break;
+                case 'week':
+                    $query->whereBetween('locale_time', [$now->startOfWeek(), $now->endOfWeek()]);
+                    break;
+                case 'month':
+                    $query->whereBetween('locale_time', [$now->startOfMonth(), $now->endOfMonth()]);
+                    break;
+                case 'year':
+                    $query->whereBetween('locale_time', [$now->startOfYear(), $now->endOfYear()]);
+                    break;
+            }
+        }
+
+        if ($request->query('sum') === 'count_data') {
+            $count = (clone $query)->count();
+            return $this->responseSuccess(['count' => $count], 'Matched Visitors Counted Successfully!');
+        }
+
+        $query->where('is_registered', true)
+            ->where('is_matched', true)
+            ->whereNotNull('embedding_id')
+            ->where('label', 'out');
+
+        if ($request->filled('sort_by')) {
+            $sortDir = $request->query('sort_dir', 'asc');
+            $query->orderBy($request->query('sort_by'), $sortDir);
+        } else {
+            $query->latest();
+        }
+
+        $perPage = $request->query('per_page', 15);
+        $dataOut = $query->paginate($perPage);
+
+        $result = [];
+        foreach ($dataOut as $out) {
+            $in = VisitorDetection::where('rec_no', $out->rec_no_in)->first();
+            $result[] = [$out, $in];
+        }
+
+        return $this->responseSuccess([
+            'data' => $result,
+            'pagination' => [
+                'current_page' => $dataOut->currentPage(),
+                'last_page' => $dataOut->lastPage(),
+                'per_page' => $dataOut->perPage(),
+                'total' => $dataOut->total(),
+            ]
+        ], 'Matched Visitor IN/OUT Data Fetched Successfully!');
     }
 }

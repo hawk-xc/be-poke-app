@@ -56,8 +56,9 @@ Route::group([
     // Visitor API
     Route::apiResource('visitors', VisitorDetectionController::class);
     Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
-    Route::get('visitors/{id}/get-match', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match');
+    Route::get('visitors/{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
     Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
     Route::get('visitors/action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
     Route::get('visitors/action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
+    Route::get('visitors/action/get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
 });
