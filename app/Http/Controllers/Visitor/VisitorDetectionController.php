@@ -490,8 +490,9 @@ class VisitorDetectionController extends Controller
         }
 
         $query->where('is_registered', true)
-            ->where('is_matched', true)
-            ->whereNotNull('embedding_id')
+            // real filtering
+            // ->where('is_matched', true)
+            // ->whereNotNull('embedding_id')
             ->where('label', 'out');
 
         if ($request->filled('sort_by')) {
