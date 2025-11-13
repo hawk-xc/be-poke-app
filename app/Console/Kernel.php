@@ -2,6 +2,9 @@
 
 namespace App\Console;
 
+use App\Jobs\Visitor\SendGateInData;
+use App\Jobs\Visitor\SendGateOutData;
+use App\Jobs\Visitor\DeleteFaceTokenData;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -24,11 +27,16 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('ml:get-entry')
-            ->hourly()
-            ->between('5:00', '23:00')
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/ml_get_entry.log'));
+        // machine learning get entry cron
+        // $schedule->command('ml:get-entry')
+        //     ->hourly()
+        //     ->between('5:00', '23:00')
+        //     ->withoutOverlapping()
+        //     ->appendOutputTo(storage_path('logs/ml_get_entry.log'));
+
+        $schedule->job(new SendGateInData)->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new SendGateOutData)->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new DeleteFaceTokenData)->daily();
     }
 
     /**

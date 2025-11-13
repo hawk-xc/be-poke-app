@@ -18,6 +18,7 @@ class VisitorDetection extends Model
         'is_registered',
         'rec_no_in',
         'is_matched',
+        'face_token',
 
         // Basic detection data
         'code',
