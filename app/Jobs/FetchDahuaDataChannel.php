@@ -122,7 +122,7 @@ class FetchDahuaDataChannel implements ShouldQueue
                 $filename = storage_path('logs/dahua_keepalive.log');
                 file_put_contents($filename, "=== PAGE {$page} ===\n" . $raw . PHP_EOL, FILE_APPEND | LOCK_EX);
 
-                $parsed = parseFeceDetectionData($raw, $this->channel, $this->label, $this->gate_name);
+                $parsed = parseFeceDetectionData($raw, $this->  channel, $this->label, $this->gate_name);
 
                 $lastCount = count($parsed['items']);
                 Log::info("Page {$page}: API reported found={$parsed['found']} | parsed items={$lastCount}");
@@ -154,11 +154,11 @@ class FetchDahuaDataChannel implements ShouldQueue
                 }
 
                 try {
-                    $visitor_data = VisitorDetection::create($item);
+                    VisitorDetection::create($item);
 
                     // dispatch to send ML Api
                     // SendEntry::dispatch($visitor_data);
-                    SendEntry::dispatchSync($visitor_data->id);
+                    // SendEntry::dispatchSync($visitor_data->id);
 
                     $saved_count++;
                     Log::info("Saved Visitor RecNo={$item['rec_no']}");
