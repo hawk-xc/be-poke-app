@@ -4,9 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\VisitorDetection;
 use Exception;
-use GuzzleHttp\Client;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class SendGateInData extends Command
@@ -38,11 +36,6 @@ class SendGateInData extends Command
     {
         $this->info('=== [SendGateInData] Command Started ===');
 
-        $client = new Client([
-            'timeout' => 20,
-            'verify'  => false,
-        ]);
-
         $visitor_detections = VisitorDetection::where('label', 'in')
             ->where('is_registered', 0)
             ->whereNotNull('person_pic_url')
@@ -54,105 +47,115 @@ class SendGateInData extends Command
         $this->info("Found {$visitor_detections->count()} unregistered detections.");
 
         foreach ($visitor_detections as $detection) {
-            // avoid throttling requests
-            sleep(12);
+
+            // sleep(3); // biar nggak kena spam API
 
             try {
                 $imageUrl = $detection->person_pic_url;
 
-                $filePath = normalizeFaceImagePath($imageUrl);
+                $paths = normalizeFaceImagePath($imageUrl);
 
-                if (!Storage::exists($filePath)) {
-                    $this->info("Detection ID {$detection->id}: file not found {$filePath}");
+                $storagePath  = $paths['storage'];   
+                $absolutePath = $paths['absolute']; 
+
+                // ============================
+                // CEK FILE DI STORAGE
+                // ============================
+                if (!Storage::exists($storagePath)) {
+                    $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
                     continue;
                 }
 
-                // ====================================================
-                // 1. Detect Face (menggunakan cara request referensi)
-                // ====================================================
-                $imageBinary = Storage::get($filePath);
+                // ============================
+                // FACE++ /detect (CURL MULTIPART)
+                // ============================
 
-                $detect_response = $client->post($this->faceplus_detect_url, [
-                    'multipart' => [
-                        ['name' => 'api_key', 'contents' => $this->apikey],
-                        ['name' => 'api_secret', 'contents' => $this->apisecret],
-                        ['name' => 'image_file', 'contents' => $imageBinary, 'filename' => basename($filePath)],
-                    ],
-                    'http_errors' => false,
-                ]);
+                $detect_response = curlMultipart(
+                    $this->faceplus_detect_url,
+                    [
+                        'api_key'           => $this->apikey,
+                        'api_secret'        => $this->apisecret,
+                        'return_landmark'   => 1,
+                        'image_file'        => new \CURLFile(
+                            $absolutePath,                      // FULL FILE PATH
+                            mime_content_type($absolutePath),   // MIME TYPE
+                            basename($absolutePath)             // FILENAME
+                        ),
+                    ]
+                );
 
-                $status = $detect_response->getStatusCode();
-                $body   = (string) $detect_response->getBody();
+                $status = $detect_response['status'];
+                $body   = $detect_response['body'];
+
+                $this->info("DETECT RESPONSE ({$detection->id}): HTTP {$status}");
 
                 Storage::put("face_detect_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
 
                 if ($status !== 200) {
-                    $this->info("Detection {$detection->id} - Face++ detect: HTTP {$status}");
+                    $this->info("Detection {$detection->id} - Detect Failed");
                     continue;
                 }
 
                 $detect_data = json_decode($body, true);
 
                 if (empty($detect_data['faces'])) {
-                    $this->info("Detection {$detection->id} - No face detected");
+                    $this->info("Detection {$detection->id} - NO FACE DETECTED");
                     $detection->status = false;
+                    $detection->save();
                     continue;
                 }
 
-                // detection metadata
+                // GET Metadata
                 $faces = $detect_data['faces'][0];
+
                 if (isset($faces['attributes'])) {
                     $detection->face_sex = $faces['attributes']['gender']['value'] == "Male" ? "Man" : "Woman";
                     $detection->face_age = $faces['attributes']['age']['value'] ?? null;
                 }
-                $face_token = $faces['face_token'] ?? null;
 
+                $face_token = $faces['face_token'] ?? null;
                 $detection->face_token = $face_token;
                 $detection->embedding_id = $detect_data['image_id'] ?? null;
 
-                // ====================================================
-                // 2. Add face_token to FaceSet (cara request referensi)
-                // ====================================================
-                $add_response = $client->post($this->faceplus_addface_url, [
-                    'form_params' => [
+                // ============================
+                // ADD FACE TO FACESET
+                // ============================
+                $add_response = curlUrlencoded(
+                    $this->faceplus_addface_url,
+                    [
                         'api_key'       => $this->apikey,
                         'api_secret'    => $this->apisecret,
                         'faceset_token' => $this->faceset_token,
                         'face_tokens'   => $face_token,
-                    ],
-                    'http_errors' => false,
-                ]);
+                    ]
+                );
 
-                $add_status = $add_response->getStatusCode();
-                $add_response_body = (string) $add_response->getBody();
-                $add_response_data = json_decode($add_response_body, true);
+                $add_status = $add_response['status'];
+                $add_body   = $add_response['body'];
+
+                $this->info($add_body);
 
                 if ($add_status !== 200) {
-                    $this->info("Detection {$detection->id} - AddFace: HTTP {$add_status}");
+                    $this->info("Detection {$detection->id} - AddFace Failed HTTP {$add_status}");
                     continue;
                 }
 
+                $add_data = json_decode($add_body, true);
+
                 $detection->is_registered = true;
-                $detection->class = $add_response_data['outer_id'] ?? null;
-                $detection->faceset_token = $add_response_data['faceset_token'] ?? null;
-
-                // Success
-                if ($add_status === 200) {
-                    $detection->status = true;
-                } else {
-                    $detection->status = false;
-                }
-
+                $detection->class         = $add_data['outer_id'] ?? null;
+                $detection->faceset_token = $this->faceset_token ?? null;
+                $detection->status        = true;
                 $detection->save();
 
-                $this->info("Detection {$detection->id} registered successfully.");
+                $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY");
+
             } catch (Exception $err) {
 
-                // Revert status
                 $detection->is_registered = false;
                 $detection->save();
 
-                $this->info("Error on detection {$detection->id}: " . $err->getMessage());
+                $this->info("ERROR ON DETECTION {$detection->id}: " . $err->getMessage());
             }
         }
 

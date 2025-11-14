@@ -208,24 +208,102 @@ if (!function_exists('downloadMedia')) {
     }
 }
 
+// if (!function_exists('normalizeFaceImagePath')) {
+//     function normalizeFaceImagePath($url)
+//     {
+//         $url = ltrim($url, '/');
+
+//         if (str_starts_with($url, 'http')) {
+//             $url = parse_url($url, PHP_URL_PATH);
+//             $url = ltrim($url, '/');
+//         }
+
+//         if (str_starts_with($url, 'storage/')) {
+//             return 'public/' . substr($url, strlen('storage/'));
+//         }
+
+//         if (!str_starts_with($url, 'public/')) {
+//             return 'public/' . $url;
+//         }
+
+//         return $url;
+//     }
+// }
+
 if (!function_exists('normalizeFaceImagePath')) {
-    function normalizeFaceImagePath($url)
+    function normalizeFaceImagePath($urlOrPath)
     {
-        $url = ltrim($url, '/');
+        $filename = basename($urlOrPath);
 
-        if (str_starts_with($url, 'http')) {
-            $url = parse_url($url, PHP_URL_PATH);
-            $url = ltrim($url, '/');
-        }
+        return [
+            'storage'  => "public/faceDetection_folder/{$filename}",
+            'absolute' => storage_path("app/public/faceDetection_folder/{$filename}"),
+        ];
+    }
+}
 
-        if (str_starts_with($url, 'storage/')) {
-            return 'public/' . substr($url, strlen('storage/'));
-        }
 
-        if (!str_starts_with($url, 'public/')) {
-            return 'public/' . $url;
-        }
+/**
+ * Curl Multipart (upload file)
+ */
+if (!function_exists('curlMultipart')) {
+    function curlMultipart(string $url, array $fields): array
+    {
+        $ch = curl_init();
 
-        return $url;
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_POSTFIELDS => $fields,
+        ]);
+
+        $body   = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errno  = curl_errno($ch);
+
+        curl_close($ch);
+
+        return [
+            'status' => $status,
+            'body'   => $body,
+            'error'  => $errno,
+        ];
+    }
+}
+
+
+/**
+ * Curl application/x-www-form-urlencoded
+ */
+if (!function_exists('curlUrlencoded')) {
+
+    function curlUrlencoded(string $url, array $fields): array
+    {
+        $ch = curl_init();
+
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_POSTFIELDS => http_build_query($fields),
+        ]);
+
+        $body   = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errno  = curl_errno($ch);
+
+        curl_close($ch);
+
+        return [
+            'status' => $status,
+            'body'   => $body,
+            'error'  => $errno,
+        ];
     }
 }

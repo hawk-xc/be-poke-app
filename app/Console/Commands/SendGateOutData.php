@@ -19,6 +19,7 @@ class SendGateOutData extends Command
     protected string $apisecret;
     protected string $faceset_token;
     protected string $faceplus_search_url;
+    protected int $acuracy = 84;
 
     public function __construct()
     {
@@ -36,11 +37,6 @@ class SendGateOutData extends Command
     {
         $this->info('=== [SendGateOutData] Command Started ===');
 
-        $client = new Client([
-            'timeout' => 20,
-            'verify'  => false,
-        ]);
-
         $visitor_detections = VisitorDetection::where('label', 'out')
             ->where('is_registered', false)
             ->where('is_matched', false)
@@ -55,7 +51,7 @@ class SendGateOutData extends Command
 
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
-            sleep(12);
+            // sleep(12);
 
             try {
                 $imageUrl = $detection->person_pic_url;
@@ -65,28 +61,38 @@ class SendGateOutData extends Command
                 // ======================================================
                 $filePath = normalizeFaceImagePath($imageUrl);
 
-                if (!Storage::exists($filePath)) {
-                    $this->info("Detection ID {$detection->id}: file not found {$filePath}");
+                $storagePath  = $filePath['storage'];
+                $absolutePath = $filePath['absolute'];
+
+                // ============================
+                // CEK FILE DI STORAGE
+                // ============================
+                if (!Storage::exists($storagePath)) {
+                    $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
                     continue;
                 }
-
-                $imageBinary = Storage::get($filePath);
 
                 // ======================================================
                 // 1. REQUEST SEARCH (FACE++ SEARCH API)
                 // ======================================================
-                $search_response = $client->post($this->faceplus_search_url, [
-                    'multipart' => [
-                        ['name' => 'api_key',        'contents' => $this->apikey],
-                        ['name' => 'api_secret',     'contents' => $this->apisecret],
-                        ['name' => 'faceset_token',  'contents' => $this->faceset_token],
-                        ['name' => 'image_file',     'contents' => $imageBinary, 'filename' => basename($filePath)],
-                    ],
-                    'http_errors' => false,
-                ]);
+                $detect_response = curlMultipart(
+                    $this->faceplus_search_url,
+                    [
+                        'api_key'           => $this->apikey,
+                        'api_secret'        => $this->apisecret,
+                        'faceset_token'     => $this->faceset_token,
+                        'image_file'        => new \CURLFile(
+                            $absolutePath,                      // FULL FILE PATH
+                            mime_content_type($absolutePath),   // MIME TYPE
+                            basename($absolutePath)             // FILENAME
+                        ),
+                    ]
+                );
 
-                $status  = $search_response->getStatusCode();
-                $body    = (string) $search_response->getBody();
+                $status = $detect_response['status'];
+                $body   = $detect_response['body'];
+
+                $this->info($body);
 
                 Storage::put("face_search_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
 
@@ -111,7 +117,7 @@ class SendGateOutData extends Command
                 $best_match = $search_data['results'][0];
                 $threshold  = $search_data['thresholds']['1e-5'] ?? 75; // acuracy threshold
 
-                if ($best_match['confidence'] < $threshold) {
+                if ($best_match['confidence'] < $this->acuracy) {
                     $this->info("Detection {$detection->id} - Low confidence match {$best_match['confidence']}");
                     $detection->save();
                     continue;
@@ -125,29 +131,36 @@ class SendGateOutData extends Command
                 $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time'])
                     ->where('label', 'in')
                     ->where('face_token', $best_match['face_token'])
+                    ->where('locale_time', '<', $detection->locale_time)
                     ->first();
 
+                $this->info($visitor_in);
+
                 if (!$visitor_in) {
-                    $this->info("No matching 'IN' record found for rec_no {$best_match['rec_no']}");
+                    $this->info("No matching 'IN' record found");
                     continue;
                 }
 
                 // Durasi kunjungan
-                $localeOut = Carbon::parse($detection->locale_time);
                 $localeIn  = Carbon::parse($visitor_in->locale_time);
-                $duration  = $localeOut->diffInSeconds($localeIn);
+                $localeOut = Carbon::parse($detection->locale_time);
+
+                if ($localeOut->lessThan($localeIn)) {
+                    $localeOut->addDay();
+                }
+
+                $minutes = $localeIn->diffInMinutes($localeOut);
 
                 // Simpan hasil
                 $detection->is_matched  = true;
                 $detection->face_token  = $search_data['faces'][0]['face_token'] ?? null;
-                $detection->embedding_id= $search_data['image_id'] ?? null;
+                $detection->embedding_id = $search_data['image_id'] ?? null;
                 $detection->rec_no_in   = $visitor_in->rec_no;
-                $detection->duration    = $duration;
+                $detection->duration    = $minutes;
                 $detection->similarity  = $best_match['confidence'];
                 $detection->status      = true;
 
                 $detection->save();
-
             } catch (Exception $err) {
 
                 $detection->is_registered = false;
