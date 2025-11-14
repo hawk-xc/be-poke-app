@@ -60,13 +60,7 @@ class SendGateInData extends Command
             try {
                 $imageUrl = $detection->person_pic_url;
 
-                if (!str_starts_with($imageUrl, '/storage/')) {
-                    $this->info("Detection {$detection->id}: invalid URL {$imageUrl}");
-                    continue;
-                }
-
-                $filePath = 'public/' . ltrim(str_replace('/storage/', '', $imageUrl), '/');
-                $this->info($filePath);
+                $filePath = normalizeFaceImagePath($imageUrl);
 
                 if (!Storage::exists($filePath)) {
                     $this->info("Detection ID {$detection->id}: file not found {$filePath}");

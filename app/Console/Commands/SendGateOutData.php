@@ -63,17 +63,10 @@ class SendGateOutData extends Command
                 // ======================================================
                 // URL FILE Validation
                 // ======================================================
-                if (!str_starts_with($imageUrl, '/storage/')) {
-                    $this->info("Detection {$detection->id}: invalid storage URL {$imageUrl}");
-                    continue;
-                }
-
-                // storage path
-                $filePath = 'public/' . ltrim(str_replace('/storage/', '', $imageUrl), '/');
-                $this->info("Processing file: {$filePath}");
+                $filePath = normalizeFaceImagePath($imageUrl);
 
                 if (!Storage::exists($filePath)) {
-                    $this->info("Detection {$detection->id}: file not found {$filePath}");
+                    $this->info("Detection ID {$detection->id}: file not found {$filePath}");
                     continue;
                 }
 

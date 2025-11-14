@@ -152,7 +152,7 @@ if (!function_exists('downloadMedia')) {
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
         $username = env('DAHUA_DIGEST_USERNAME');
         $password = env('DAHUA_DIGEST_PASSWORD');
-        
+
         try {
             $savePath = storage_path('app/public/faceDetection_folder/' . $label . '/' . $fileName);
 
@@ -205,5 +205,27 @@ if (!function_exists('downloadMedia')) {
         } catch (\Exception $err) {
             return $err->getMessage();
         }
+    }
+}
+
+if (!function_exists('normalizeFaceImagePath')) {
+    function normalizeFaceImagePath($url)
+    {
+        $url = ltrim($url, '/');
+
+        if (str_starts_with($url, 'http')) {
+            $url = parse_url($url, PHP_URL_PATH);
+            $url = ltrim($url, '/');
+        }
+
+        if (str_starts_with($url, 'storage/')) {
+            return 'public/' . substr($url, strlen('storage/'));
+        }
+
+        if (!str_starts_with($url, 'public/')) {
+            return 'public/' . $url;
+        }
+
+        return $url;
     }
 }
