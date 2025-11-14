@@ -27,15 +27,13 @@ class Kernel extends ConsoleKernel
         $schedule->command('visitor:send-gate-in')
             ->between('5:00', '23:00')
             ->everyFiveMinutes()
-            ->withoutOverlapping()
-            ->runInBackground();
+            ->withoutOverlapping();
 
         // Gate Out (tiap 5 menit)
         $schedule->command('visitor:send-gate-out')
             ->between('5:00', '23:00')
             ->everyFiveMinutes()
-            ->withoutOverlapping()
-            ->runInBackground();
+            ->withoutOverlapping();
 
         // Delete Face Tokens (sekali sehari)
         $schedule->command('visitor:delete-face-tokens')
