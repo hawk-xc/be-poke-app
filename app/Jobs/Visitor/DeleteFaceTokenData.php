@@ -1,45 +1,46 @@
 <?php
 
-namespace App\Jobs\Visitor;
+namespace App\Console\Commands;
 
 use Exception;
 use GuzzleHttp\Client;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class DeleteFaceTokenData implements ShouldQueue
+class DeleteFaceTokenData extends Command
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    protected $signature = 'visitor:delete-face-tokens';
+    protected $description = 'Remove all face tokens from the Face++ FaceSet';
 
-    protected $apikey;
-    protected $apisecret;
-    protected $faceset_token;
-    protected $faceplus_removeface_url;
+    protected string $apikey;
+    protected string $apisecret;
+    protected string $faceset_token;
+    protected string $faceplus_removeface_url;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct()
     {
-        $this->faceplus_removeface_url = env('FACEPLUSPLUS_URL') . '/faceset/removeface';
-        $this->apikey = env('FACEPLUSPLUS_API_KEY');
-        $this->apisecret = env('FACEPLUSPLUS_SECRET_KEY');
+        parent::__construct();
+
+        $baseUrl = rtrim(env('FACEPLUSPLUS_URL'), '/');
+
+        $this->faceplus_removeface_url = $baseUrl . '/faceset/removeface';
+        $this->apikey        = env('FACEPLUSPLUS_API_KEY');
+        $this->apisecret     = env('FACEPLUSPLUS_SECRET_KEY');
         $this->faceset_token = env('FACEPLUSPLUS_FACESET_TOKEN');
     }
 
-    /**
-     * Execute the job.
-     */
-    public function handle(): void
+    public function handle()
     {
-        $client = new Client(['timeout' => 30, 'verify' => false]);
+        $this->info("=== [DeleteFaceTokenData] Clearing FaceSet... ===");
+
+        $client = new Client([
+            'timeout' => 30,
+            'verify'  => false,
+        ]);
 
         try {
-            Log::info('Attempting to remove all face tokens from FaceSet...');
+
+            $this->info("Sending request to remove all tokens...");
 
             $response = $client->post($this->faceplus_removeface_url, [
                 'form_params' => [
@@ -48,21 +49,43 @@ class DeleteFaceTokenData implements ShouldQueue
                     'faceset_token' => $this->faceset_token,
                     'face_tokens'   => 'RemoveAllFaceTokens',
                 ],
+                'http_errors' => false,
             ]);
 
-            $data = json_decode($response->getBody()->getContents(), true);
+            $status = $response->getStatusCode();
+            $body   = (string) $response->getBody();
+            $data   = json_decode($body, true);
 
-            if (isset($data['failure_detail'])) {
-                Log::warning('Face++ removeface partial failure.', $data['failure_detail']);
+            $this->info("HTTP Status: {$status}");
+            $this->info("Response: " . $body);
+
+            if ($status !== 200) {
+                $this->error("Failed to delete tokens. HTTP {$status}");
+                return 1;
             }
 
-            Log::info("Successfully sent request to remove all face tokens. FaceSet updated.", [
+            if (isset($data['failure_detail'])) {
+                Log::warning('Partial failure while removing face tokens', $data['failure_detail']);
+                $this->warn("Partial failure reported. Check log file.");
+            }
+
+            $this->info("FaceSet tokens removed", [
                 'faceset_token' => $data['faceset_token'] ?? null,
-                'face_removed' => $data['face_count'] ?? 0,
+                'face_removed'  => $data['face_removed'] ?? 0,
             ]);
 
-        } catch (Exception $err) {
-            Log::error('Error while trying to remove all face tokens from FaceSet: ' . $err->getMessage());
+            $this->info("All face tokens removed successfully.");
+
+        } catch (Exception $e) {
+
+            Log::error("Remove FaceToken ERROR: " . $e->getMessage());
+            $this->error("Error: " . $e->getMessage());
+
+            return 1;
         }
+
+        $this->info("=== [DeleteFaceTokenData] Finished ===");
+
+        return 0;
     }
 }

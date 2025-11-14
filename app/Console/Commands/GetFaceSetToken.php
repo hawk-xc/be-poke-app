@@ -65,8 +65,8 @@ class GetFaceSetToken extends Command
                     'form_params' => [
                         'api_key' => $this->apikey,
                         'api_secret' => $this->apisecret,
-                        'display_name' => 'faceset_db',
-                        'outer_id' => 'faceset_db',
+                        'display_name' => 'face_db',
+                        'outer_id' => 'face_db',
                     ],
                     'http_errors' => false,
                 ]);

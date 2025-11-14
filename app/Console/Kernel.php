@@ -34,9 +34,9 @@ class Kernel extends ConsoleKernel
         //     ->withoutOverlapping()
         //     ->appendOutputTo(storage_path('logs/ml_get_entry.log'));
 
-        $schedule->job(new SendGateInData)->between('5:00', '23:00')->everyFiveMinutes()->withoutOverlapping();
-        $schedule->job(new SendGateOutData)->between('5:00', '23:00')->everyFiveMinutes()->withoutOverlapping();
-        $schedule->job(new DeleteFaceTokenData)->daily();
+        $schedule->command('visitor:send-gate-in')->between('5:00', '23:00')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
+        $schedule->command('visitor:send-gate-out')->between('5:00', '23:00')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
+        $schedule->command('visitor:delete-face-tokens')->daily();
     }
 
     /**

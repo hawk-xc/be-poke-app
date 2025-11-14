@@ -21,7 +21,7 @@ class VisitorDetection extends Model
         'face_token',
 
         // Basic detection data
-        'code',
+        'faceset_token',
         'action',
         'class',
         'event_type',

@@ -5,41 +5,40 @@ namespace App\Jobs\Visitor;
 use Exception;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
-use Illuminate\Bus\Queueable;
 use App\Models\VisitorDetection;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
 
 class SendGateOutData implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $apikey;
-    protected $apisecret;
-    protected $faceset_token;
-    protected $faceplus_search_url;
+    protected string $apikey;
+    protected string $apisecret;
+    protected string $faceset_token;
+    protected string $faceplus_search_url;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct()
     {
-        $this->faceplus_search_url = env('FACEPLUSPLUS_URL') . '/search';
-        $this->apikey = env('FACEPLUSPLUS_API_KEY');
-        $this->apisecret = env('FACEPLUSPLUS_SECRET_KEY');
+        $baseUrl = rtrim(env('FACEPLUSPLUS_URL'), '/');
+
+        $this->faceplus_search_url = $baseUrl . '/search';
+        $this->apikey        = env('FACEPLUSPLUS_API_KEY');
+        $this->apisecret     = env('FACEPLUSPLUS_SECRET_KEY');
         $this->faceset_token = env('FACEPLUSPLUS_FACESET_TOKEN');
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
-        $client = new Client(['timeout' => 20, 'verify' => false]);
+        $this->info("=== [SendGateOutData] Started ===");
+
+        $client = new Client([
+            'timeout' => 20,
+            'verify' => false,
+        ]);
 
         $visitor_detections = VisitorDetection::where('label', 'out')
             ->where('is_registered', false)
@@ -50,77 +49,112 @@ class SendGateOutData implements ShouldQueue
             ->limit(25)
             ->get();
 
+        $this->info("Found {$visitor_detections->count()} detections.");
+
         foreach ($visitor_detections as $detection) {
-            $detection->save();
+
+            // Delay mirip Gate In (hindari rate limit)
+            sleep(12);
 
             try {
                 $imageUrl = $detection->person_pic_url;
-                if (!$imageUrl) {
-                    Log::warning("Skipping detection ID {$detection->id}: person_pic_url is empty.");
+
+                if (!str_starts_with($imageUrl, '/storage/')) {
+                    $this->info("Detection {$detection->id}: invalid URL {$imageUrl}");
                     continue;
                 }
 
-                // Convert public URL to local storage path
-                $storageUrl = env('APP_URL') . '/storage/';
-                if (strpos($imageUrl, $storageUrl) !== 0) {
-                    Log::error("Detection ID {$detection->id}: Image URL '{$imageUrl}' is not a local storage URL.");
-                    continue;
-                }
-                $filePath = 'public/' . substr($imageUrl, strlen($storageUrl));
+                $filePath = 'public/' . ltrim(str_replace('/storage/', '', $imageUrl), '/');
+                $this->info($filePath);
 
                 if (!Storage::exists($filePath)) {
-                    Log::error("Detection ID {$detection->id}: File not found at path '{$filePath}'.");
+                    $this->info("Detection {$detection->id}: file not found {$filePath}");
                     continue;
                 }
 
-                $response = $client->post($this->faceplus_search_url, [
+                $imageBinary = Storage::get($filePath);
+
+                // ====================================================
+                // 1. SEARCH FACE++  (mengikuti pola Gate In)
+                // ====================================================
+                $search_response = $client->post($this->faceplus_search_url, [
                     'multipart' => [
                         ['name' => 'api_key', 'contents' => $this->apikey],
                         ['name' => 'api_secret', 'contents' => $this->apisecret],
                         ['name' => 'faceset_token', 'contents' => $this->faceset_token],
-                        ['name' => 'image_file', 'contents' => Storage::get($filePath), 'filename' => basename($filePath)],
+                        ['name' => 'image_file', 'contents' => $imageBinary, 'filename' => basename($filePath)],
                     ],
+                    'http_errors' => false,
                 ]);
 
-                $data = json_decode($response->getBody()->getContents(), true);
-                $detection->is_registered = true;
+                $status = $search_response->getStatusCode();
+                $body   = (string) $search_response->getBody();
 
-                if (isset($data['results']) && !empty($data['results'])) {
-                    $best_match = $data['results'][0];
-                    // Threshold can be found in $data['thresholds']
-                    if ($best_match['confidence'] >= $data['thresholds']['1e-5']) {
-                        $detection->is_matched = true;
-                        
-                        // get rec_no from visitor in data
-                        $visitor_in_data = VisitorDetection::select(['id', 'rec_no', 'locale_time'])->where('label', 'in')->where('rec_no', $best_match['rec_no'])->first();
-                        
-                        // get duration data
-                        $localeOutTime = Carbon::parse($detection->locale_time);
-                        $localeInTime = Carbon::parse($visitor_in_data->locale_time);
-                        $detection->duration = $localeOutTime->diffInSeconds($localeInTime);
+                Storage::put("face_search_log_out_{$detection->id}.log", "HTTP {$status}\n{$body}");
 
-                        // store visitor in rec_no id
-                        $detection->rec_no_in = $visitor_in_data->rec_no;
-
-                        // get machine learning acuracy
-                        $detection->similarity = $best_match['confidence'];
-
-                        $detection->save();
-                        Log::info("Match found for detection ID {$detection->id} with confidence {$best_match['confidence']}.");
-                    } else {
-                        Log::info("No confident match found for detection ID {$detection->id}. Highest confidence: {$best_match['confidence']}");
-                    }
-                } else {
-                    Log::info("No match found for detection ID {$detection->id}.");
+                if ($status !== 200) {
+                    $this->info("Detection {$detection->id} - SearchFace: HTTP {$status}");
+                    continue;
                 }
 
+                $data = json_decode($body, true);
+                $detection->is_registered = true;
+
+                // ====================================================
+                // 2. PROCESS SEARCH RESULT
+                // ====================================================
+                if (empty($data['results'])) {
+                    $this->info("Detection {$detection->id}: no result.");
+                    $detection->save();
+                    continue;
+                }
+
+                $best_match = $data['results'][0];
+                $threshold = $data['thresholds']['1e-5'];
+
+                if ($best_match['confidence'] >= $threshold) {
+
+                    $this->info("Match {$detection->id} confidence {$best_match['confidence']}");
+
+                    // ambil data gate-in
+                    $visitor_in_data = VisitorDetection::select(['id', 'rec_no', 'locale_time'])
+                        ->where('label', 'in')
+                        ->where('rec_no', $best_match['rec_no'])
+                        ->first();
+
+                    if ($visitor_in_data) {
+                        // durasi
+                        $localeOut = Carbon::parse($detection->locale_time);
+                        $localeIn  = Carbon::parse($visitor_in_data->locale_time);
+
+                        $detection->duration = $localeOut->diffInSeconds($localeIn);
+
+                        // set rec_no_in
+                        $detection->rec_no_in = $visitor_in_data->rec_no;
+                    }
+
+                    // akurasi
+                    $detection->similarity = $best_match['confidence'];
+                    $detection->is_matched = true;
+                    $detection->status = true;
+
+                } else {
+                    $this->info("No confident match for ID {$detection->id} ({$best_match['confidence']})");
+                }
+
+                $detection->save();
+
             } catch (Exception $err) {
-                // Revert is_registered status if API call fails to allow reprocessing
+
+                // revert status
                 $detection->is_registered = false;
                 $detection->status = false;
                 $detection->save();
-                Log::error('Error processing detection ID ' . $detection->id . ': ' . $err->getMessage());
+
+                $this->info("Error on detection {$detection->id}: " . $err->getMessage());
             }
         }
+
+        $this->info("=== [SendGateOutData] Finished ===");
     }
 }
