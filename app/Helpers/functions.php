@@ -233,15 +233,24 @@ if (!function_exists('downloadMedia')) {
 if (!function_exists('normalizeFaceImagePath')) {
     function normalizeFaceImagePath($urlOrPath)
     {
-        $filename = basename($urlOrPath);
+        $clean = parse_url($urlOrPath, PHP_URL_PATH); 
+
+        $pos = strpos($clean, 'faceDetection_folder');
+
+        if ($pos === false) {
+            throw new Exception("Invalid face image path: {$urlOrPath}");
+        }
+
+        $relative = substr($clean, $pos);
+
+        $relative = ltrim($relative, '/');
 
         return [
-            'storage'  => "public/faceDetection_folder/{$filename}",
-            'absolute' => storage_path("app/public/faceDetection_folder/{$filename}"),
+            'storage'  => "public/{$relative}",
+            'absolute' => storage_path("app/public/{$relative}"),
         ];
     }
 }
-
 
 /**
  * Curl Multipart (upload file)
