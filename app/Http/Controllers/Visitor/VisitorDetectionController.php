@@ -423,16 +423,7 @@ class VisitorDetectionController extends Controller
     {
         $query = VisitorDetection::query();
 
-        if ($request->query('data_status') === 'with_embedding') {
-            $query->whereNotNull('embedding_id')
-                ->where('is_registered', true);
-        }
-
-        if ($request->query('trashed') === 'with') {
-            $query->withTrashed();
-        } elseif ($request->query('trashed') === 'only') {
-            $query->onlyTrashed();
-        }
+        $query->where('is_matched', 1);
 
         if ($request->filled('search')) {
             $search = $request->query('search');
@@ -447,12 +438,6 @@ class VisitorDetectionController extends Controller
                     }
                 });
             }
-        }
-
-        if ($request->query('visitor_image') === 'true') {
-            $query->whereNotNull('person_pic_url');
-        } elseif ($request->query('visitor_image') === 'false') {
-            $query->whereNull('person_pic_url');
         }
 
         $filterableColumns = ['name', 'face_sex', 'gate_name', 'event_type', 'emotion'];
@@ -490,9 +475,6 @@ class VisitorDetectionController extends Controller
         }
 
         $query->where('is_registered', true)
-            // real filtering
-            // ->where('is_matched', true)
-            // ->whereNotNull('embedding_id')
             ->where('label', 'out');
 
         if ($request->filled('sort_by')) {

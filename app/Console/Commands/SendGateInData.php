@@ -47,8 +47,8 @@ class SendGateInData extends Command
         $this->info("Found {$visitor_detections->count()} unregistered detections.");
 
         foreach ($visitor_detections as $detection) {
-
-            // sleep(3); // biar nggak kena spam API
+            // Avoid throttle
+            // sleep(2);
 
             try {
                 $imageUrl = $detection->person_pic_url;
