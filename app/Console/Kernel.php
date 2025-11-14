@@ -15,9 +15,9 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\SendGateInData::class,
         \App\Console\Commands\SendGateOutData::class,
-        \App\Console\Commands\DeleteFaceTokenData::class,
+        \App\Console\Commands\ConstructFaceTokenData::class,
     ];
-
+    
     /**
      * Define the application's command schedule.
      */
