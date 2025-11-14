@@ -48,7 +48,7 @@ class SendGateInData extends Command
 
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
-            // sleep(2);
+            sleep(2);
 
             try {
                 $imageUrl = $detection->person_pic_url;

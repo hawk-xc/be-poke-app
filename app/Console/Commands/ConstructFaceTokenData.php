@@ -18,11 +18,11 @@ class ConstructFaceTokenData extends Command
     protected $apikey;
     protected $apisecret;
     protected $faceset_token;
-    protected $faceplus_url;
+    protected $faceplus_remove_url;
 
     public function __construct()
     {
-        $this->faceplus_url = env('FACEPLUSPLUS_URL') . "/faceset/removeface";
+        $this->faceplus_remove_url = env('FACEPLUSPLUS_URL') . "/faceset/removeface";
         $this->apikey = env('FACEPLUSPLUS_API_KEY');
         $this->apisecret = env('FACEPLUSPLUS_SECRET_KEY');
         $this->faceset_token = env('FACEPLUSPLUS_FACESET_TOKEN');
@@ -44,15 +44,15 @@ class ConstructFaceTokenData extends Command
         $client = new \GuzzleHttp\Client();
 
         try {
-            $response = $client->post($this->faceplus_url, [
-                'form_params' => [
-                    'api_key' => $this->apikey,
-                    'api_secret' => $this->apisecret,
-                    'faceset_token' => $this->faceset_token,
-                    'face_tokens' => 'RemoveAllFaceTokens',
-                ],
+            $response = curlUrlencoded($this->faceplus_remove_url, [
+                'api_key' => $this->apikey,
+                'api_secret' => $this->apisecret,
+                'faceset_token' => $this->faceset_token,
+                'face_tokens' => 'RemoveAllFaceTokens',
             ]);
-            $data = json_decode($response->getBody()->getContents(), true);
+            
+            $response_status = $response['status'];
+
             $this->info("Face token data was successfully removed from Faceset");
         } catch (Exception $err) {
             Log::info('Construct Error : ' . $err->getMessage());

@@ -46,14 +46,14 @@ class SendGateOutData extends Command
             ->whereNull('face_token')
             ->whereNotNull('person_pic_url')
             ->latest()
-            ->limit(25)
+            // ->limit(25)
             ->get();
 
         $this->info("Found {$visitor_detections->count()} unprocessed gate-out detections.");
 
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
-            // sleep(2);
+            sleep(2);
 
             try {
                 $imageUrl = $detection->person_pic_url;
@@ -138,20 +138,16 @@ class SendGateOutData extends Command
 
                 $this->info($visitor_in);
 
+                $minutes = 0;
+
                 if (!$visitor_in) {
                     $this->info("No matching 'IN' record found");
                     continue;
+                } else {
+                    // Durasi kunjungan
+                    $minutes = Carbon::parse($visitor_in->locale_time)
+                        ->diffInMinutes(Carbon::parse($detection->locale_time));
                 }
-
-                // Durasi kunjungan
-                $localeIn  = Carbon::parse($visitor_in->locale_time);
-                $localeOut = Carbon::parse($detection->locale_time);
-
-                if ($localeOut->lessThan($localeIn)) {
-                    $localeOut->addDay();
-                }
-
-                $minutes = $localeIn->diffInMinutes($localeOut);
 
                 // Simpan hasil
                 $detection->is_matched  = true;
@@ -162,7 +158,7 @@ class SendGateOutData extends Command
                 $detection->similarity  = $best_match['confidence'];
                 $detection->status      = true;
 
-                $facetokens = $search_data['faces'][0]['face_token'].','.$visitor_in->face_token;
+                $facetokens = $search_data['faces'][0]['face_token'] . ',' . $visitor_in->face_token;
 
                 $deleteFaceTokenRequest = curlMultipart(
                     $this->faceplus_delete_face_token,
@@ -174,8 +170,7 @@ class SendGateOutData extends Command
                     ]
                 );
 
-                if ($deleteFaceTokenRequest['status'] === 200)
-                {
+                if ($deleteFaceTokenRequest['status'] === 200) {
                     $this->info("Face tokens deleted : " . $facetokens);
                 }
 

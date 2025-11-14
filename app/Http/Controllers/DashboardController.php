@@ -89,7 +89,7 @@ class DashboardController extends Controller
         }
 
         // RATA-RATA LAMA KUNJUNGAN
-        $lengthOfVisit = $realTimeQuery->where('label', 'out')->avg('duration');
+        $lengthOfVisit = $realTimeQuery->where('label', 'out')->where('is_matched', 1)->avg('duration');
         $lengthOfVisit = $lengthOfVisit ? round($lengthOfVisit, 2) : 0;
 
         // PEAK HOURS (07.00 - 17.59)
