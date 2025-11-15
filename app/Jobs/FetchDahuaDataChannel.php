@@ -43,6 +43,8 @@ class FetchDahuaDataChannel implements ShouldQueue
      */
     public function handle(): void
     {
+        Log::info('Data Fetcher Run AT::' . now());
+
         $endpoint = rtrim(env('DAHUA_API_ENDPOINT'), '/');
         $username = env('DAHUA_DIGEST_USERNAME');
         $password = env('DAHUA_DIGEST_PASSWORD');
