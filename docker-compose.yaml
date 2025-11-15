@@ -103,7 +103,7 @@ services:
   # =====================================
   # 🕒 Laravel Scheduler
   # =====================================
-  scheduler:
+    scheduler:
     build: .
     container_name: twb-be-scheduler
     restart: always
@@ -116,13 +116,22 @@ services:
     volumes: *code_sync
     command: >
       sh -c "
-        echo '🕒 Starting Laravel Scheduler...' &&
+        echo '🕒 Starting Laravel Scheduler using CRON...' &&
         until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
         if [ ! -d vendor ]; then
           echo '📦 vendor not found, running composer install...';
           composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
-        php artisan schedule:work
+
+        # buat cronjob Laravel
+        echo '* * * * * cd /var/www && php artisan schedule:run >> /dev/null 2>&1' > /etc/cron.d/laravel &&
+        chmod 0644 /etc/cron.d/laravel &&
+        crontab /etc/cron.d/laravel &&
+
+        touch /var/log/cron.log &&
+        echo '🟢 Cron started...' &&
+
+        cron -f
       "
     networks:
       - chronical-net
