@@ -123,14 +123,16 @@ services:
           composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
 
-        echo '* * * * * cd /var/www && php artisan schedule:run >> /dev/null 2>&1' > /etc/cron.d/laravel &&
+        echo '* * * * * cd /var/www && php artisan schedule:run >> /var/log/cron.log 2>&1' \
+        > /etc/cron.d/laravel &&
+
         chmod 0644 /etc/cron.d/laravel &&
         crontab /etc/cron.d/laravel &&
 
         touch /var/log/cron.log &&
         echo '🟢 Cron started...' &&
 
-        cron -f
+        crond -f -l 2 -L /var/log/cron.log
       "
     networks:
       - chronical-net
