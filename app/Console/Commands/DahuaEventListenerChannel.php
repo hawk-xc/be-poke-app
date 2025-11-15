@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\FetchDahuaDataChannel;
+use App\Jobs\Visitor\FetchDahuaDataChannel;
 
 use Illuminate\Console\Command;
 
@@ -54,6 +54,7 @@ class DahuaEventListenerChannel extends Command
                     $event = trim($data);
 
                     if (!empty($event)) {
+                        Log::info($event);
                         try {
                             FetchDahuaDataChannel::dispatch(1, 'in', 'Gate-In-A');
                             FetchDahuaDataChannel::dispatch(2, 'in', 'Gate-In-B');

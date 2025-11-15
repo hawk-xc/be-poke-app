@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use App\Jobs\FetchDahuaDataChannel;
 
 class Kernel extends ConsoleKernel
 {
@@ -17,7 +18,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\SendGateOutData::class,
         \App\Console\Commands\ConstructFaceTokenData::class,
     ];
-    
+
     /**
      * Define the application's command schedule.
      */
@@ -27,6 +28,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('visitor:send-gate-in')
             ->between('5:00', '23:00')
             ->everyFiveMinutes()
+            ->runInBackground()
             ->withoutOverlapping()
             ->timeout(120);
 
@@ -34,11 +36,31 @@ class Kernel extends ConsoleKernel
         $schedule->command('visitor:send-gate-out')
             ->between('5:00', '23:00')
             ->hourly()
-            ->withoutOverlapping();
+            ->runInBackground()
+            ->withoutOverlapping()
+            ->timeout(120);
 
         // Delete Face Tokens (sekali sehari)
         $schedule->command('visitor:construct-face-token-data')
             ->daily();
+
+        $channels = [
+            [1, 'in', 'Gate-In-A'],
+            [2, 'in', 'Gate-In-B'],
+            [3, 'in', 'Gate-In-C'],
+            [4, 'in', 'Gate-In-D'],
+            [5, 'in', 'Gate-In-E'],
+            [6, 'in', 'Gate-In-F'],
+            [7, 'out', 'Gate-Out-A'],
+            [8, 'in', 'Gate-In-G'],
+        ];
+
+        foreach ($channels as [$ch, $label, $gate]) {
+            $schedule->job(new FetchDahuaDataChannel($ch, $label, $gate))
+                ->everyFiveMinutes()
+                ->withoutOverlapping()
+                ->onQueue('default');
+        }
     }
 
     /**

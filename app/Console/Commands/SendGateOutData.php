@@ -20,7 +20,10 @@ class SendGateOutData extends Command
     protected string $faceset_token;
     protected string $faceplus_delete_face_token;
     protected string $faceplus_search_url;
-    protected int $acuracy = 84;
+    protected int $toleranceMaxStayMin = 40; // minutes
+    protected int $getOutAttendingDataMin = 30; // minutes
+    protected int $expirateOutDataHour = 12; // hour
+    protected int $acuracy = 84; // percentage
 
     public function __construct()
     {
@@ -43,7 +46,8 @@ class SendGateOutData extends Command
             ->where('is_matched', false)
             ->whereNull('rec_no_in')
             ->whereNotNull('person_pic_url')
-            ->whereDate('locale_time', Carbon::today())
+            ->whereBetween('locale_time', [Carbon::now()->subHours($this->expirateOutDataHour), Carbon::now()->subMinutes($this->getOutAttendingDataMin)])
+            ->latest()
             // ->limit(25)
             ->get();
 
@@ -129,7 +133,7 @@ class SendGateOutData extends Command
                 $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'face_token'])
                     ->where('label', 'in')
                     ->where('face_token', $best_match['face_token'])
-                    ->where('locale_time', '<', $detection->locale_time)
+                    ->where('locale_time', '<', Carbon::parse($detection->locale_time)->subMinutes($this->toleranceMaxStayMin))
                     ->first();
 
                 $this->info($visitor_in);
