@@ -132,7 +132,7 @@ services:
         touch /var/log/cron.log &&
         echo '🟢 Cron started...' &&
 
-        crond -f -l 2 -L /var/log/cron.log
+        crond -f -d 8 >> /var/log/cron.log 2>&1
       "
     networks:
       - chronical-net

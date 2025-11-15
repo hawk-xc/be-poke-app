@@ -8,7 +8,8 @@ RUN apk add --no-cache \
     bash git zip unzip curl icu-dev libxml2-dev libzip-dev \
     libpng-dev libjpeg-turbo-dev freetype-dev oniguruma-dev zlib-dev \
     nodejs npm netcat-openbsd shadow cronie \   
- && mkdir -p /etc/cron.d \                     
+ && mkdir -p /root/.cache/crontab \
+ && mkdir -p /etc/cron.d \
  && docker-php-ext-configure gd --with-jpeg --with-freetype \
  && docker-php-ext-install -j$(nproc) gd intl pdo_mysql mbstring bcmath exif pcntl zip
 
