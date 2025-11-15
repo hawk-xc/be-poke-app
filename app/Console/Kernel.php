@@ -29,16 +29,14 @@ class Kernel extends ConsoleKernel
             ->between('5:00', '23:00')
             ->everyFiveMinutes()
             ->runInBackground()
-            ->withoutOverlapping()
-            ->timeout(120);
+            ->withoutOverlapping();
 
         // Gate Out (tiap 5 menit)
         $schedule->command('visitor:send-gate-out')
             ->between('5:00', '23:00')
             ->hourly()
             ->runInBackground()
-            ->withoutOverlapping()
-            ->timeout(120);
+            ->withoutOverlapping();
 
         // Delete Face Tokens (sekali sehari)
         $schedule->command('visitor:construct-face-token-data')
@@ -58,8 +56,8 @@ class Kernel extends ConsoleKernel
         foreach ($channels as [$ch, $label, $gate]) {
             $schedule->job(new FetchDahuaDataChannel($ch, $label, $gate))
                 ->everyFiveMinutes()
-                ->withoutOverlapping()
-                ->onQueue('default');
+                ->between('5:00', '23:00')
+                ->withoutOverlapping();
         }
     }
 
