@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\VisitorDetection;
 use Exception;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
+use App\Models\VisitorDetection;
 use Illuminate\Support\Facades\Storage;
 
 class SendGateInData extends Command
@@ -40,6 +41,7 @@ class SendGateInData extends Command
             ->where('is_registered', 0)
             ->whereNotNull('person_pic_url')
             ->whereNull('face_token')
+            ->whereDate('locale_time', Carbon::today())
             ->latest()
             // ->limit(25)
             ->get();

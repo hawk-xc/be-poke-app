@@ -43,7 +43,7 @@ class SendGateOutData extends Command
             ->where('is_matched', false)
             ->whereNull('rec_no_in')
             ->whereNotNull('person_pic_url')
-            ->latest()
+            ->whereDate('locale_time', Carbon::today())
             // ->limit(25)
             ->get();
 
