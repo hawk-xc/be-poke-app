@@ -41,7 +41,7 @@ class SendGateInData extends Command
             ->whereNotNull('person_pic_url')
             ->whereNull('face_token')
             ->latest()
-            ->limit(25)
+            // ->limit(25)
             ->get();
 
         $this->info("Found {$visitor_detections->count()} unregistered detections.");
@@ -49,6 +49,8 @@ class SendGateInData extends Command
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
             sleep(2);
+
+            $this->info($detection);
 
             try {
                 $imageUrl = $detection->person_pic_url;
@@ -87,6 +89,8 @@ class SendGateInData extends Command
                 $status = $detect_response['status'];
                 $body   = $detect_response['body'];
 
+                $this->info($body);
+
                 $this->info("DETECT RESPONSE ({$detection->id}): HTTP {$status}");
 
                 Storage::put("face_detect_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
@@ -101,6 +105,7 @@ class SendGateInData extends Command
                 if (empty($detect_data['faces'])) {
                     $this->info("Detection {$detection->id} - NO FACE DETECTED");
                     $detection->status = false;
+                    $detection->is_registered = true;
                     $detection->save();
                     continue;
                 }

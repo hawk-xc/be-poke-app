@@ -55,6 +55,8 @@ class SendGateOutData extends Command
             // Avoid throttle
             sleep(2);
 
+            $this->info($detection);
+
             try {
                 $imageUrl = $detection->person_pic_url;
 
