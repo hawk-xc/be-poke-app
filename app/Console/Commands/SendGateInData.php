@@ -103,10 +103,10 @@ class SendGateInData extends Command
                 $detect_data = json_decode($body, true);
 
                 if (empty($detect_data['faces'])) {
-                    $this->info("Detection {$detection->id} - NO FACE DETECTED");
-                    $detection->status = false;
-                    $detection->is_registered = true;
+                    $detection->status = 0;
+                    $detection->is_registered = 1;
                     $detection->save();
+                    $this->info("Detection {$detection->id} - NO FACE DETECTED");
                     continue;
                 }
 
@@ -147,17 +147,17 @@ class SendGateInData extends Command
 
                 $add_data = json_decode($add_body, true);
 
-                $detection->is_registered = true;
+                $detection->is_registered = 1;
                 $detection->class         = $add_data['outer_id'] ?? null;
                 $detection->faceset_token = $this->faceset_token ?? null;
-                $detection->status        = true;
+                $detection->status        = 1;
                 $detection->save();
 
                 $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY");
 
             } catch (Exception $err) {
 
-                $detection->is_registered = false;
+                $detection->is_registered = 0;
                 $detection->save();
 
                 $this->info("ERROR ON DETECTION {$detection->id}: " . $err->getMessage());

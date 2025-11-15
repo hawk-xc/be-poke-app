@@ -110,10 +110,9 @@ class SendGateOutData extends Command
                 // ======================================================
                 // Result
                 // ======================================================
-                $detection->is_registered = true;
-
                 if (!isset($search_data['results']) || empty($search_data['results'])) {
                     $this->info("Detection {$detection->id} - No match found");
+                    $detection->is_registered = false;
                     $detection->save();
                     continue;
                 }
@@ -122,7 +121,6 @@ class SendGateOutData extends Command
                 $threshold  = $search_data['thresholds']['1e-5'] ?? 75; // acuracy threshold
 
                 if ($best_match['confidence'] < $this->acuracy ?? $threshold) {
-                    $this->info("Detection {$detection->id} - Low confidence match {$best_match['confidence']}");
                     $detection->save();
                     continue;
                 }
@@ -130,12 +128,10 @@ class SendGateOutData extends Command
                 // ======================================================
                 // MATCH VALID
                 // ======================================================
-                $this->info("Detection {$detection->id} MATCHED with confidence {$best_match['confidence']}");
-
                 $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'face_token'])
                     ->where('label', 'in')
                     ->where('face_token', $best_match['face_token'])
-                    ->where('locale_time', '<', $detection->locale_time)
+                    ->where('CAST(locale_time AS DATETIME)', '<', $detection->locale_time)
                     ->first();
 
                 $this->info($visitor_in);
@@ -152,15 +148,18 @@ class SendGateOutData extends Command
                 }
 
                 // Simpan hasil
-                $detection->is_matched  = true;
-                $detection->face_token  = $search_data['faces'][0]['face_token'] ?? null;
-                $detection->embedding_id = $search_data['image_id'] ?? null;
-                $detection->rec_no_in   = $visitor_in->rec_no;
-                $detection->duration    = $minutes;
-                $detection->similarity  = $best_match['confidence'];
-                $detection->status      = true;
+                $detection->is_matched      = true;
+                $detection->is_registered   = true;
+                $detection->face_token      = $search_data['faces'][0]['face_token'] ?? null;
+                $detection->embedding_id    = $search_data['image_id'] ?? null;
+                $detection->rec_no_in       = $visitor_in->rec_no;
+                $detection->duration        = $minutes;
+                $detection->similarity      = $best_match['confidence'];
+                $detection->status          = true;
 
                 $facetokens = $search_data['faces'][0]['face_token'] . ',' . $visitor_in->face_token;
+
+                $this->info("Detection {$detection->id} MATCHED with confidence {$best_match['confidence']}");
 
                 $deleteFaceTokenRequest = curlMultipart(
                     $this->faceplus_delete_face_token,
