@@ -68,7 +68,7 @@ services:
           echo '📦 vendor not found, running composer install...';
           composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
-        php artisan queue:work --tries=3 --timeout=160 --queue=default --daemon 
+        php artisan queue:work --tries=3 --timeout=160 --queue=default
       "
     networks:
       - chronical-net
