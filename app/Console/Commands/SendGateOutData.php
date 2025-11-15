@@ -40,10 +40,8 @@ class SendGateOutData extends Command
         $this->info('=== [SendGateOutData] Command Started ===');
 
         $visitor_detections = VisitorDetection::where('label', 'out')
-            ->where('is_registered', false)
             ->where('is_matched', false)
             ->whereNull('rec_no_in')
-            ->whereNull('face_token')
             ->whereNotNull('person_pic_url')
             ->latest()
             // ->limit(25)
@@ -98,8 +96,6 @@ class SendGateOutData extends Command
 
                 $this->info($body);
 
-                Storage::put("face_search_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
-
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Search: HTTP {$status}");
                     continue;
@@ -112,7 +108,9 @@ class SendGateOutData extends Command
                 // ======================================================
                 if (!isset($search_data['results']) || empty($search_data['results'])) {
                     $this->info("Detection {$detection->id} - No match found");
-                    $detection->is_registered = false;
+                    $detection->is_matched = false;
+                    $detection->is_registered = true;
+                    $detection->face_token = $search_data['results'][0]['face_token'] ?? null;
                     $detection->save();
                     continue;
                 }
@@ -131,7 +129,7 @@ class SendGateOutData extends Command
                 $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'face_token'])
                     ->where('label', 'in')
                     ->where('face_token', $best_match['face_token'])
-                    ->where('CAST(locale_time AS DATETIME)', '<', $detection->locale_time)
+                    ->where('locale_time', '<', $detection->locale_time)
                     ->first();
 
                 $this->info($visitor_in);
@@ -149,7 +147,6 @@ class SendGateOutData extends Command
 
                 // Simpan hasil
                 $detection->is_matched      = true;
-                $detection->is_registered   = true;
                 $detection->face_token      = $search_data['faces'][0]['face_token'] ?? null;
                 $detection->embedding_id    = $search_data['image_id'] ?? null;
                 $detection->rec_no_in       = $visitor_in->rec_no;
