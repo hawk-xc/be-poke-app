@@ -103,7 +103,7 @@ services:
   # =====================================
   # 🕒 Laravel Scheduler
   # =====================================
-    scheduler:
+  scheduler:
     build: .
     container_name: twb-be-scheduler
     restart: always
@@ -123,7 +123,6 @@ services:
           composer install --no-interaction --prefer-dist --optimize-autoloader;
         fi &&
 
-        # buat cronjob Laravel
         echo '* * * * * cd /var/www && php artisan schedule:run >> /dev/null 2>&1' > /etc/cron.d/laravel &&
         chmod 0644 /etc/cron.d/laravel &&
         crontab /etc/cron.d/laravel &&
