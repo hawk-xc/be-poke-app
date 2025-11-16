@@ -57,6 +57,8 @@ Route::group([
     Route::apiResource('visitors', VisitorDetectionController::class);
     Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
     Route::get('visitors/{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
+    Route::post('visitors/{id}/revert', [VisitorDetectionController::class, 'revert'])->name('visitors.revert');
+    Route::post('visitors/{id}/revert-matched', [VisitorDetectionController::class, 'revertMatchedData'])->name('visitors.revert-matched');
     Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
     Route::get('visitors/action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
     Route::get('visitors/action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');

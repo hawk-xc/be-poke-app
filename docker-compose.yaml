@@ -103,39 +103,39 @@ services:
   # =====================================
   # 🕒 Laravel Scheduler
   # =====================================
-  scheduler:
-    build: .
-    container_name: twb-be-scheduler
-    restart: always
-    working_dir: /var/www
-    env_file:
-      - .env
-    environment:
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-3306}
-    volumes: *code_sync
-    command: >
-      sh -c "
-        echo '🕒 Starting Laravel Scheduler using CRON...' &&
-        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
-        if [ ! -d vendor ]; then
-          echo '📦 vendor not found, running composer install...';
-          composer install --no-interaction --prefer-dist --optimize-autoloader;
-        fi &&
+  # scheduler:
+  #   build: .
+  #   container_name: twb-be-scheduler
+  #   restart: always
+  #   working_dir: /var/www
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     DB_HOST: ${DB_HOST:-db}
+  #     DB_PORT: ${DB_PORT:-3306}
+  #   volumes: *code_sync
+  #   command: >
+  #     sh -c "
+  #       echo '🕒 Starting Laravel Scheduler using CRON...' &&
+  #       until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
+  #       if [ ! -d vendor ]; then
+  #         echo '📦 vendor not found, running composer install...';
+  #         composer install --no-interaction --prefer-dist --optimize-autoloader;
+  #       fi &&
 
-        echo '* * * * * cd /var/www && php artisan schedule:run >> /var/log/cron.log 2>&1' \
-        > /etc/cron.d/laravel &&
+  #       echo '* * * * * cd /var/www && php artisan schedule:run >> /var/log/cron.log 2>&1' \
+  #       > /etc/cron.d/laravel &&
 
-        chmod 0644 /etc/cron.d/laravel &&
-        crontab /etc/cron.d/laravel &&
+  #       chmod 0644 /etc/cron.d/laravel &&
+  #       crontab /etc/cron.d/laravel &&
 
-        touch /var/log/cron.log &&
-        echo '🟢 Cron started...' &&
+  #       touch /var/log/cron.log &&
+  #       echo '🟢 Cron started...' &&
 
-        crond -f -d 8 >> /var/log/cron.log 2>&1
-      "
-    networks:
-      - chronical-net
+  #       crond -f -d 8 >> /var/log/cron.log 2>&1
+  #     "
+  #   networks:
+  #     - chronical-net
 
 networks:
   chronical-net:

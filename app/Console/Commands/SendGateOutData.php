@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SendGateOutData extends Command
 {
-    protected $signature = 'visitor:send-gate-out';
+    protected $signature = 'visitor:send-gate-out {start?} {end?}';
     protected $description = 'Process outgoing visitor detections and match faces using Face++';
 
     protected string $apikey;
@@ -40,13 +40,17 @@ class SendGateOutData extends Command
 
     public function handle()
     {
+        date_default_timezone_set('Asia/Jakarta');
+        $start_time = $this->argument('start') ?? Carbon::now()->subHours($this->expirateOutDataHour);
+        $end_time   = $this->argument('end') ?? Carbon::now()->subMinutes($this->getOutAttendingDataMin);
+
         $this->info('=== [SendGateOutData] Command Started ===');
 
         $visitor_detections = VisitorDetection::where('label', 'out')
             ->where('is_matched', false)
             ->whereNull('rec_no_in')
             ->whereNotNull('person_pic_url')
-            ->whereBetween('locale_time', [Carbon::now()->subHours($this->expirateOutDataHour), Carbon::now()->subMinutes($this->getOutAttendingDataMin)])
+            ->whereBetween('locale_time', [$start_time, $end_time])
             ->latest()
             // ->limit(25)
             ->get();
@@ -157,6 +161,7 @@ class SendGateOutData extends Command
                 $detection->duration        = $minutes;
                 $detection->similarity      = $best_match['confidence'];
                 $detection->status          = true;
+                $detection->is_registered   = true;
 
                 $facetokens = $search_data['faces'][0]['face_token'] . ',' . $visitor_in->face_token;
 

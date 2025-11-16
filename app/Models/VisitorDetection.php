@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 use function PHPSTORM_META\map;
@@ -31,7 +32,7 @@ class VisitorDetection extends Model
         'utc',
         'real_utc',
         'sequence',
-        
+
         // Face Data (FaceDetection)
         'face_age',
         'face_sex',
@@ -45,7 +46,7 @@ class VisitorDetection extends Model
         'mustache',
         'out_locale_time',
         'gate_name',
-        
+
         // Additional Object
         'object_action',
         'object_bounding_box',
@@ -53,11 +54,11 @@ class VisitorDetection extends Model
         'object_sex',
         'frame_sequence',
         'emotion',
-        
+
         // Passerby
         'passerby_group_id',
         'passerby_uid',
-        
+
         // Data FaceRecognition (Candidates)
         'person_id',
         'person_uid',
@@ -68,7 +69,7 @@ class VisitorDetection extends Model
         'person_pic_url',
         'person_pic_quality',
         'similarity',
-        
+
         // Soft delete
         'deleted_at',
 
@@ -79,5 +80,65 @@ class VisitorDetection extends Model
         'status',
         'embedding_id',
         'duration',
+
+        // revert_by
+        'revert_by'
     ];
+
+    public function visitorIn()
+    {
+        return $this->hasOne(VisitorDetection::class, 'rec_no', 'rec_no_in')
+            ->where('label', 'in');
+    }
+
+    public function scopeVisitorIn(Builder $query)
+    {
+        return $query->where('label', 'in');
+    }
+
+    public function scopeVisitorOut($query)
+    {
+        return $query->where('label', 'out');
+    }
+
+    public function scopeMatched($query)
+    {
+        return $query->where('is_matched', true)
+            ->where('is_registered', true);
+    }
+
+    public function scopeRegistered($query)
+    {
+        return $query->where('is_registered', true)
+            ->whereNotNull('embedding_id');
+    }
+
+    public function scopeToday(Builder $query)
+    {
+        return $query->whereDate('locale_time', today());
+    }
+
+    public function scopeThisWeek(Builder $query)
+    {
+        return $query->whereBetween('locale_time', [
+            now()->startOfWeek(),
+            now()->endOfWeek()
+        ]);
+    }
+
+    public function scopeThisMonth(Builder $query)
+    {
+        return $query->whereBetween('locale_time', [
+            now()->startOfMonth(),
+            now()->endOfMonth()
+        ]);
+    }
+
+    public function scopeThisYear(Builder $query)
+    {
+        return $query->whereBetween('locale_time', [
+            now()->startOfYear(),
+            now()->endOfYear()
+        ]);
+    }
 }

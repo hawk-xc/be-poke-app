@@ -41,7 +41,7 @@ class DahuaFaceDetectionChannel extends Command
     {
         date_default_timezone_set('Asia/Jakarta');
         $start_time = $this->argument('start') ?? date('Y-m-d H:i:s', strtotime('-17 minutes'));
-        $end_time   = $this->argument('end')   ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
+        $end_time   = $this->argument('end') ?? date('Y-m-d H:i:s', strtotime('-2 minutes'));
 
         $this->channel  = (int) ($this->argument('channel') ?? 1);
         $this->gateName = $this->argument('gate_name') ?? null;
