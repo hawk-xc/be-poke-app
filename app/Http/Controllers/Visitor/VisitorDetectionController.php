@@ -137,8 +137,9 @@ class VisitorDetectionController extends Controller
         // Filter waktu
         $now = Carbon::now();
         if ($request->has('start_time') && $request->has('end_time')) {
-            $start = Carbon::parse($request->query('start_time'))->startOfSecond();
-            $end = Carbon::parse($request->query('end_time'))->endOfSecond();
+            $start = Carbon::parse($request->query('start_time'))->setTime(0, 1, 0);
+            $end = Carbon::parse($request->query('end_time'))->setTime(23, 59, 0);
+
             $baseQuery->whereBetween('locale_time', [$start, $end]);
         } elseif ($request->filled('time')) {
             switch ($request->query('time')) {
@@ -652,8 +653,9 @@ class VisitorDetectionController extends Controller
 
         $now = Carbon::now();
         if ($request->has('start_time') && $request->has('end_time')) {
-            $start = Carbon::parse($request->query('start_time'))->startOfSecond();
-            $end = Carbon::parse($request->query('end_time'))->endOfSecond();
+            $start = Carbon::parse($request->query('start_time'))->setTime(0, 1, 0);
+            $end = Carbon::parse($request->query('end_time'))->setTime(23, 59, 0);
+
             $query->whereBetween('locale_time', [$start, $end]);
         } elseif ($request->filled('time')) {
             switch ($request->query('time')) {

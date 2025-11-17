@@ -55,8 +55,9 @@ class DashboardController extends Controller
 
         if ($request->filled('start_date') && $request->filled('end_date')) {
             try {
-                $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
-                $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
+                $start = Carbon::parse($request->start_date, $timezone)->setTime(0, 1, 0);
+                $end   = Carbon::parse($request->end_date, $timezone)->setTime(23, 59, 0);
+
                 $timeLabel = 'custom';
             } catch (\Exception $e) {
                 return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 422);
