@@ -23,6 +23,7 @@ class VisitorDetectionController extends Controller
      * @var AuthRepository
      */
     protected AuthRepository $authRepository;
+    
     protected $searchableColumns = [
         'id',
         'label',
@@ -49,6 +50,43 @@ class VisitorDetectionController extends Controller
         'similarity',
         'status',
     ];
+
+    protected $selectColumns = [
+        'id',
+        'rec_no',
+        'rec_no_in',
+        'face_token',
+        'faceset_token',
+        'channel',
+        'class',
+        'event_type',
+        'locale_time',
+        'out_locale_time',
+        'utc',
+        'real_utc',
+        'glasses',
+        'mustache',
+        'gate_name',
+        'face_age',
+        'face_sex',
+        'emotion',
+        'person_id',
+        'embedding_id',
+        'duration',
+        'person_group_name',
+        'person_group_type',
+        'person_pic_url',
+        'similarity',
+        'status',
+        'deleted_at',
+        'created_at',
+        'updated_at',
+        'label',
+        'revert_by',
+        'is_registered',
+        'is_matched',
+    ];
+    
     protected $revertColumns = [
         'is_registered' => false,
         'is_matched' => false,
@@ -68,20 +106,38 @@ class VisitorDetectionController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        // $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
+        $this->middleware(['permission:visitor:list'])->only(['index', 'show', 'getReport', 'getQueues', 'getMatch', 'getMatchedData']);
         $this->middleware(['permission:visitor:create'])->only('store');
-        $this->middleware(['permission:visitor:edit'])->only('update');
+        $this->middleware(['permission:visitor:edit'])->only('update', 'revert', 'revertMatchedData');
         $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
 
         $this->authRepository = $ar;
     }
 
     /**
-     * Display a listing of the resource.
+     * Get all visitors.
+     *
+     * @query int per_page Number of items per page.
+     * @query string sort_by Column name to sort by.
+     * @query string sort_dir Sorting direction (asc/desc).
+     * @query string search Search query.
+     * @query string search_by Column name to search by.
+     * @query string trashed Filter soft delete (with/only).
+     * @query string data_status Filter by embedding & registered (with_embedding).
+     * @query string label Filter by label (in/out).
+     * @query string visitor_image Filter by visitor image (true/false).
+     * @query string time Filter by time (today/week/month/year).
+     * @query string match Get matched visitors (true/false).
+     * @query string is_registered Filter by is registered (true/false).
+     * @query string sum SUM / COUNT query.
+     *
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request): JsonResponse
     {
         $baseQuery = Visitor::query();
+
+        $baseQuery->select($this->selectColumns);
 
         // Filter embedding & registered
         if ($request->query('data_status') === 'with_embedding') {
@@ -209,8 +265,22 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($visitors, 'Visitors Fetched Successfully!');
     }
 
+
     /**
      * Store a newly created resource in storage.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Symfony\Component\HttpFoundation\JsonResponse
+     *
+     * @bodyParam name string required. The name of the visitor. Max length is 255 characters.
+     * @bodyParam gender string required. The gender of the visitor. Must be either Male or Female.
+     * @bodyParam phone_number string nullable. The phone number of the visitor. Max length is 20 characters.
+     * @bodyParam address string nullable. The address of the visitor.
+     * @bodyParam is_active boolean optional. Whether the visitor is active or not. Defaults to true.
+     *
+     * @return \Symfony\Component\HttpFoundation\JsonResponse
+     *
+     * @throws \Exception
      */
     public function store(Request $request): JsonResponse
     {
@@ -231,8 +301,12 @@ class VisitorDetectionController extends Controller
         }
     }
 
+
     /**
      * Display the specified resource.
+     *
+     * @param string $id
+     * @return JsonResponse
      */
     public function show(string $id): JsonResponse
     {
@@ -261,27 +335,42 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($visitor_data, 'Visitor fetched successfully!');
     }
 
+
     /**
      * Update the specified resource in storage.
+     *
+     * @param Request $request
+     * @param string $id
+     * @return JsonResponse
      */
     public function update(Request $request, string $id): JsonResponse
     {
         $visitor = Visitor::withTrashed()->findOrFail($id);
 
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'gender' => 'sometimes|required|in:Male,Female',
-            'phone_number' => 'nullable|string|max:20',
-            'address' => 'nullable|string',
-            'is_active' => 'sometimes|boolean',
-        ]);
+        try {
+            $request->validate([
+                'gender' => 'sometimes|required|in:male,female',
+                'age' => 'sometimes|integer',
+            ]);
 
-        $visitor->update($validated);
-        return $this->responseSuccess($visitor, 'Visitor Updated Successfully!');
+            $visitor->face_sex = (string) $request->input('gender') == 'male' ? 'Man' : 'Woman';
+            $visitor->face_age = (int) $request->input('age');
+
+            $visitor->save();
+
+            return $this->responseSuccess($visitor, 'Visitor Updated Successfully!');
+        } catch (Exception $e) {
+            return $this->responseError($e->getMessage(), 'Visitor Update Failed!', 500);
+        }
     }
 
+
     /**
-     * Remove the specified resource from storage.
+     * Soft delete the specified visitor.
+     *
+     * @param string $id The ID of the visitor to be deleted.
+     *
+     * @return JsonResponse
      */
     public function destroy(string $id): JsonResponse
     {
@@ -290,8 +379,13 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess(null, 'Visitor Soft Deleted Successfully!');
     }
 
+
     /**
-     * Restore the specified soft-deleted resource.
+     * Restore the specified soft-deleted visitor.
+     *
+     * @param string $id The ID of the visitor to restore.
+     * @return JsonResponse The restored visitor with a success response.
+     * @throws Exception If the visitor is not found.
      */
     public function restore(string $id): JsonResponse
     {
@@ -300,8 +394,12 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($visitor, 'Visitor Restored Successfully!');
     }
 
+
     /**
      * Permanently remove the specified resource from storage.
+     *
+     * @param string $id
+     * @return JsonResponse
      */
     public function forceDelete(string $id): JsonResponse
     {
@@ -310,6 +408,21 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess(null, 'Visitor Permanently Deleted Successfully!');
     }
 
+    /**
+     * Get a report of visitor statistics based on the given time range.
+     *
+     * Time range presets:
+     * - today: Today's date
+     * - week: This week's date
+     * - month: This month's date
+     * - year: This year's date
+     *
+     * You can also specify a custom date range by providing 'start_date' and 'end_date' parameters.
+     * The date format should be in 'YYYY-MM-DD HH:mm:ss' format.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
     public function getReport(Request $request): JsonResponse
     {
         try {
@@ -537,9 +650,26 @@ class VisitorDetectionController extends Controller
         }
     }
 
+    /**
+     * Get Visitor Queues (Unmatched Visitors)
+     * 
+     * @queryParam label string Filter by label (in/out)
+     * @queryParam search string Search by face_token, name, phone_number, address, person_group, sex
+     * @queryParam search_by string Search by column (face_token, name, phone_number, address, person_group, sex)
+     * @queryParam start_time string Filter by start time (format: Y-m-d H:i:s)
+     * @queryParam end_time string Filter by end time (format: Y-m-d H:i:s)
+     * @queryParam time string Filter by time (today, week, month, year)
+     * @queryParam sort_by string Sort by column (id, face_token, name, phone_number, address, person_group, sex, locale_time)
+     * @queryParam sort_dir string Sort direction (asc/desc)
+     * @queryParam per_page int Number of items to return per page
+     * @queryParam sum string Count data if given (count_data)
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function getQueues(Request $request): JsonResponse
     {
         $query = VisitorQueue::query();
+        
         $query->where('is_registered', true);
         $query->where('is_matched', false);
         $query->whereNull('rec_no_in');
@@ -611,6 +741,15 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($queues, 'Visitor Queues Fetched Successfully!');
     }
 
+    /**
+     * Get the matched data for a visitor detection record
+     *
+     * @param string $id The record ID to fetch the matched data for
+     *
+     * @return JsonResponse The matched data with a success response
+     *
+     * @throws JsonResponse If the visitor in record is not found
+     */
     public function getMatch(string $id): JsonResponse
     {
         $visitorOut = VisitorDetection::find($id);
@@ -623,6 +762,21 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess($visitorOut, 'Matched Data Fetched Successfully!');
     }
 
+    /**
+     * Get the matched data for a visitor detection record
+     *
+     * @queryParam search string Search by face_token, name, phone_number, address, person_group, sex
+     * @queryParam search_by string Search by column (face_token, name, phone_number, address, person_group, sex)
+     * @queryParam start_time string Filter by start time (format: Y-m-d H:i:s)
+     * @queryParam end_time string Filter by end time (format: Y-m-d H:i:s)
+     * @queryParam time string Filter by time (today, week, month, year)
+     * @queryParam sort_by string Sort by column (id, face_token, name, phone_number, address, person_group, sex, locale_time)
+     * @queryParam sort_dir string Sort direction (asc/desc)
+     * @queryParam per_page int Number of items to return per page
+     * @queryParam sum string Count data if given (count_data)
+     *
+     * @return JsonResponse The matched data with a success response
+     */
     public function getMatchedData(Request $request): JsonResponse
     {
         $query = VisitorDetection::query();
@@ -706,6 +860,15 @@ class VisitorDetectionController extends Controller
         ], 'Matched Visitor IN/OUT Data Fetched Successfully!');
     }
 
+    /**
+     * Revert the specified visitor.
+     *
+     * @param string $id The ID of the visitor.
+     *
+     * @return JsonResponse
+     *
+     * @throws Exception
+     */
     public function revert(string $id): JsonResponse
     {
         $visitor = Visitor::findOrFail($id);
@@ -720,6 +883,19 @@ class VisitorDetectionController extends Controller
         }
     }
 
+    /**
+     * Revert the matched visitor data.
+     *
+     * This function will revert the matched visitor data.
+     * The matched visitor data is the data that has the same
+     * rec_no_in and rec_no_out and has the is_matched flag set to true.
+     *
+     * @param string $id The ID of the visitor.
+     *
+     * @return JsonResponse
+     *
+     * @throws Exception
+     */
     public function revertMatchedData(string $id): JsonResponse
     {
         $visitor_out = Visitor::findOrFail($id);
