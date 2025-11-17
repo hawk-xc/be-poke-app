@@ -23,7 +23,7 @@ class SendGateOutData extends Command
     protected int $toleranceMaxStayMin = 40; // minutes
     protected int $getOutAttendingDataMin = 30; // minutes
     protected int $expirateOutDataHour = 12; // hour
-    protected int $acuracy = 84; // percentage
+    protected int $acuracy = 87; // percentage
 
     public function __construct()
     {
