@@ -50,7 +50,7 @@ class RoleController extends Controller
         $role = Role::with(['users', 'permissions'])->find($id);
 
         if (!$role) {
-            return $this->errorResponse(null, 'Role not found', 404);
+            return $this->responseError(null, 'Role not found', 404);
         }
 
         return $this->responseSuccess($role, 'Role retrieved successfully');
@@ -61,7 +61,7 @@ class RoleController extends Controller
         $role = Role::with(['users'])->find($id);
 
         if (!$role) {
-            return $this->errorResponse(null, 'Role not found', 404);
+            return $this->responseError(null, 'Role not found', 404);
         }
 
         return $this->responseSuccess($role, 'Role retrieved successfully');
@@ -83,7 +83,7 @@ class RoleController extends Controller
         $role = Role::find($id);
 
         if (!$role) {
-            return $this->errorResponse(null, 'Role not found', 404);
+            return $this->responseError(null, 'Role not found', 404);
         }
 
         $request->validate([
@@ -112,7 +112,7 @@ class RoleController extends Controller
         $role = Role::find($id);
 
         if (!$role) {
-            return $this->errorResponse(null, 'Role not found', 404);
+            return $this->responseError(null, 'Role not found', 404);
         }
 
         $request->validate([
@@ -129,7 +129,7 @@ class RoleController extends Controller
         $role = Role::find($id);
 
         if (!$role) {
-            return $this->errorResponse(null, 'Role not found', 404);
+            return $this->responseError(null, 'Role not found', 404);
         }
 
         $role->delete();
