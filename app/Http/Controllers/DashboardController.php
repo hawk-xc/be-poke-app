@@ -82,16 +82,16 @@ class DashboardController extends Controller
             $femalePercent = $totalInAll > 0 ? round(($femaleCount / $totalInAll) * 100, 2) : 0;
 
             $ageCategories = [
-                '0-17' => $realTimeQuery->whereBetween('face_age', [0, 17])->count(),
-                '18-25' => $realTimeQuery->whereBetween('face_age', [18, 25])->count(),
-                '26-40' => $realTimeQuery->whereBetween('face_age', [26, 40])->count(),
-                '41-60' => $realTimeQuery->whereBetween('face_age', [41, 60])->count(),
-                '61+' => $realTimeQuery->where('face_age', '>=', 61)->count(),
+                '0-17' => $visitorIn->whereBetween('face_age', [0, 17])->count(),
+                '18-25' => $visitorIn->whereBetween('face_age', [18, 25])->count(),
+                '26-40' => $visitorIn->whereBetween('face_age', [26, 40])->count(),
+                '41-60' => $visitorIn->whereBetween('face_age', [41, 60])->count(),
+                '61+' => $visitorIn->where('face_age', '>=', 61)->count(),
             ];
 
             $agePercentages = [];
             foreach ($ageCategories as $range => $count) {
-                $agePercentages[$range] = $totalAll > 0 ? round(($count / $totalAll) * 100, 2) : 0;
+                $agePercentages[$range] = $totalInAll > 0 ? round(($count / $totalInAll) * 100, 2) : 0;
             }
 
             // RATA-RATA LAMA KUNJUNGAN
