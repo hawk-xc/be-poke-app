@@ -208,32 +208,10 @@ if (!function_exists('downloadMedia')) {
     }
 }
 
-// if (!function_exists('normalizeFaceImagePath')) {
-//     function normalizeFaceImagePath($url)
-//     {
-//         $url = ltrim($url, '/');
-
-//         if (str_starts_with($url, 'http')) {
-//             $url = parse_url($url, PHP_URL_PATH);
-//             $url = ltrim($url, '/');
-//         }
-
-//         if (str_starts_with($url, 'storage/')) {
-//             return 'public/' . substr($url, strlen('storage/'));
-//         }
-
-//         if (!str_starts_with($url, 'public/')) {
-//             return 'public/' . $url;
-//         }
-
-//         return $url;
-//     }
-// }
-
 if (!function_exists('normalizeFaceImagePath')) {
     function normalizeFaceImagePath($urlOrPath)
     {
-        $clean = parse_url($urlOrPath, PHP_URL_PATH); 
+        $clean = parse_url($urlOrPath, PHP_URL_PATH);
 
         $pos = strpos($clean, 'faceDetection_folder');
 
@@ -283,7 +261,6 @@ if (!function_exists('curlMultipart')) {
     }
 }
 
-
 /**
  * Curl application/x-www-form-urlencoded
  */
@@ -314,5 +291,49 @@ if (!function_exists('curlUrlencoded')) {
             'body'   => $body,
             'error'  => $errno,
         ];
+    }
+}
+
+if (!function_exists('sendTelegram')) {
+    /**
+     * Send message to Telegram
+     *
+     * @param string $message Message to send
+     * @return array|null Response from Telegram API or null on error
+     */
+    function sendTelegram($message)
+    {
+        $TG_TOKEN   = env('TG_TOKEN');
+        $TG_CHAT_ID = env('TG_CHAT_ID');
+
+        if (!$TG_TOKEN || !$TG_CHAT_ID) {
+            return false;
+        }
+
+        $telegramApi = "https://api.telegram.org/bot{$TG_TOKEN}/sendMessage";
+
+        $postData = [
+            'chat_id' => $TG_CHAT_ID,
+            'text'    => $message,
+            'parse_mode' => 'HTML',
+        ];
+
+        // CURL
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $telegramApi);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $result = curl_exec($ch);
+        $error  = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            Log::error('Telegram send error: ' . $error);
+            return false;
+        }
+
+        return json_decode($result, true);
     }
 }

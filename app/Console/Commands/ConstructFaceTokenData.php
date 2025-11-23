@@ -50,11 +50,23 @@ class ConstructFaceTokenData extends Command
                 'faceset_token' => $this->faceset_token,
                 'face_tokens' => 'RemoveAllFaceTokens',
             ]);
-            
-            $response_status = $response['status'];
 
+            $message = "
+🔵 <b>[FaceSet DB]</b>
+Face Token data was successfully removed from Faceset
+
+<code>Date: " . now() . "</code>";
+            
+            sendTelegram($message);
             $this->info("Face token data was successfully removed from Faceset");
         } catch (Exception $err) {
+            $message = "
+🔴 <b>[FaceSet DB]</b>
+Face Token data was failed to be removed from Faceset
+
+<code>Date: " . now() . "</code>";
+
+            sendTelegram($message);
             Log::info('Construct Error : ' . $err->getMessage());
         }
     }

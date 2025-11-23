@@ -845,7 +845,7 @@ class VisitorDetectionController extends Controller
 
         $result = [];
         foreach ($dataOut as $out) {
-            $in = $out->visitorIn;
+            $in = $out->visitorIn->orderBy('locale_time', 'desc');
             $result[] = $out;
         }
 

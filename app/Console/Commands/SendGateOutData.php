@@ -20,10 +20,12 @@ class SendGateOutData extends Command
     protected string $faceset_token;
     protected string $faceplus_delete_face_token;
     protected string $faceplus_search_url;
+    protected int $matchedDataCounter;
     protected int $toleranceMaxStayMin = 40; // minutes
     protected int $getOutAttendingDataMin = 30; // minutes
     protected int $expirateOutDataHour = 12; // hour
     protected int $acuracy = 87; // percentage
+    protected int $sleepTime = 1;
 
     public function __construct()
     {
@@ -36,13 +38,25 @@ class SendGateOutData extends Command
         $this->apikey                       = env('FACEPLUSPLUS_API_KEY');
         $this->apisecret                    = env('FACEPLUSPLUS_SECRET_KEY');
         $this->faceset_token                = env('FACEPLUSPLUS_FACESET_TOKEN');
+        $this->matchedDataCounter           = 0;
     }
 
     public function handle()
     {
         date_default_timezone_set('Asia/Jakarta');
-        $start_time = $this->argument('start') ?? Carbon::now()->subHours($this->expirateOutDataHour);
-        $end_time   = $this->argument('end') ?? Carbon::now()->subMinutes($this->getOutAttendingDataMin);
+        $defaultStart = Carbon::now()->setTime(6, 0, 0);
+        $defaultEnd = Carbon::now()->setTime(20, 0, 0);
+
+        // dynamic_time subhour
+        // $start_time = $this->argument('start') ?? Carbon::now()->subHours($this->expirateOutDataHour);
+        // $end_time   = $this->argument('end') ?? Carbon::now()->subMinutes($this->getOutAttendingDataMin);
+
+        // $start_time = $this->argument('start') ?? $defaultStart;
+        // $end_time   = $this->argument('end') ?? $defaultEnd;
+
+        // CRON Running
+        $start_time = $this->argument('start') ?? Carbon::now()->subMinutes($this->getOutAttendingDataMin);
+        $end_time   = $this->argument('end') ?? Carbon::now()->subMinutes(5);
 
         $this->info('=== [SendGateOutData] Command Started ===');
 
@@ -59,7 +73,7 @@ class SendGateOutData extends Command
 
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
-            sleep(2);
+            sleep($this->sleepTime);
 
             $this->info($detection);
 
@@ -75,7 +89,7 @@ class SendGateOutData extends Command
                 $absolutePath = $filePath['absolute'];
 
                 // ============================
-                // CEK FILE DI STORAGE
+                // File Checker Block
                 // ============================
                 if (!Storage::exists($storagePath)) {
                     $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
@@ -102,31 +116,35 @@ class SendGateOutData extends Command
                 $status = $detect_response['status'];
                 $body   = $detect_response['body'];
 
+                // debug
                 $this->info($body);
 
+                // Error state block | mem limit
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Search: HTTP {$status}");
                     continue;
                 }
 
                 $search_data = json_decode($body, true);
+                $detection->face_token = $search_data['faces'][0]['face_token'] ?? null;
 
                 // ======================================================
-                // Result
+                // When Result Not Found (face token doesn't match any face in faceset)
                 // ======================================================
                 if (!isset($search_data['results']) || empty($search_data['results'])) {
                     $this->info("Detection {$detection->id} - No match found");
                     $detection->is_matched = false;
                     $detection->is_registered = true;
-                    $detection->face_token = $search_data['results'][0]['face_token'] ?? null;
                     $detection->save();
                     continue;
                 }
 
+                // acuracy threshold fig block
                 $best_match = $search_data['results'][0];
-                $threshold  = $search_data['thresholds']['1e-5'] ?? 75; // acuracy threshold
+                $threshold  = $search_data['thresholds']['1e-5'] ?? 75;
+                $thresholdValue = max($this->acuracy, $threshold);
 
-                if ($best_match['confidence'] < $this->acuracy ?? $threshold) {
+                if ($best_match['confidence'] < $thresholdValue) {
                     $detection->save();
                     continue;
                 }
@@ -166,6 +184,7 @@ class SendGateOutData extends Command
                 $facetokens = $search_data['faces'][0]['face_token'] . ',' . $visitor_in->face_token;
 
                 $this->info("Detection {$detection->id} MATCHED with confidence {$best_match['confidence']}");
+                $this->matchedDataCounter++;
 
                 $deleteFaceTokenRequest = curlMultipart(
                     $this->faceplus_delete_face_token,
@@ -188,11 +207,38 @@ class SendGateOutData extends Command
                 $detection->status = false;
                 $detection->save();
 
+                sendTelegram('🔴 [SendGateOutEvent] Send Gate Out Errno : ' . $err->getMessage());
                 $this->info("Error on detection {$detection->id}: " . $err->getMessage());
             }
         }
 
+        $summary = "
+🔵 <b>[SendGateOutEvent] Summary Report</b>
+
+<b>Total Gate-Out Detections:</b> {$visitor_detections->count()}
+
+<b>📊 Matching Result:</b>
+• 🔗 Matched Records     : <b>{$this->matchedDataCounter}</b>
+• 🚫 Unmatched Records   : <b>" . ($visitor_detections->count() - $this->matchedDataCounter) . "</b>
+
+<b>🕒 Processing Window:</b>
+• Start : <code>{$start_time}</code>
+• End   : <code>{$end_time}</code>
+
+<b>⚙️ Face++ Parameters:</b>
+• Accuracy Threshold  : <b>{$this->acuracy}%</b>
+• Tolerance Max Stay  : <b>{$this->toleranceMaxStayMin} min</b>
+• FaceSet Token       : <code>{$this->faceset_token}</code>
+
+<b>📘 Notes:</b>
+• Out records are matched with IN records using Face++ Search.
+• Local storage verified before processing.
+• Non-matched records are kept as <i>unmatched</i>.
+            ";
+
         $this->info('=== [SendGateOutData] Finished ===');
+        sendTelegram($summary);
+
         return 0;
     }
 }

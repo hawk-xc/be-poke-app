@@ -18,6 +18,10 @@ class SendGateInData extends Command
     protected string $faceset_token;
     protected string $faceplus_detect_url;
     protected string $faceplus_addface_url;
+    protected int $sleepRequestTime = 1;
+    protected int $noFaceDetectedCounter;
+    protected int $sendFaceSuccessCounter;
+    protected int $sendFaceFailedCounter;
 
     public function __construct()
     {
@@ -31,12 +35,13 @@ class SendGateInData extends Command
         $this->apikey        = env('FACEPLUSPLUS_API_KEY');
         $this->apisecret     = env('FACEPLUSPLUS_SECRET_KEY');
         $this->faceset_token = env('FACEPLUSPLUS_FACESET_TOKEN');
+        $this->sendFaceSuccessCounter   = 0;
+        $this->noFaceDetectedCounter = 0;
+        $this->sendFaceFailedCounter = 0;
     }
 
     public function handle()
     {
-        $this->info('=== [SendGateInData] Command Started ===');
-
         $visitor_detections = VisitorDetection::where('label', 'in')
             ->where('is_registered', 0)
             ->whereNotNull('person_pic_url')
@@ -50,20 +55,18 @@ class SendGateInData extends Command
 
         foreach ($visitor_detections as $detection) {
             // Avoid throttle
-            sleep(2);
-
-            $this->info($detection);
+            sleep($this->sleepRequestTime);
 
             try {
                 $imageUrl = $detection->person_pic_url;
 
                 $paths = normalizeFaceImagePath($imageUrl);
 
-                $storagePath  = $paths['storage'];   
-                $absolutePath = $paths['absolute']; 
+                $storagePath  = $paths['storage'];
+                $absolutePath = $paths['absolute'];
 
                 // ============================
-                // CEK FILE DI STORAGE
+                // FILE CHECK BLOCK
                 // ============================
                 if (!Storage::exists($storagePath)) {
                     $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
@@ -71,7 +74,7 @@ class SendGateInData extends Command
                 }
 
                 // ============================
-                // FACE++ /detect (CURL MULTIPART)
+                // FACE++ /detect (CURL MULTIPART) BLOCK
                 // ============================
 
                 $detect_response = curlMultipart(
@@ -91,14 +94,13 @@ class SendGateInData extends Command
                 $status = $detect_response['status'];
                 $body   = $detect_response['body'];
 
-                $this->info($body);
-
-                $this->info("DETECT RESPONSE ({$detection->id}): HTTP {$status}");
+                // $this->info("DETECT RESPONSE ({$detection->id}): HTTP {$status}");
 
                 Storage::put("face_detect_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
 
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Detect Failed");
+                    $this->sendFaceFailedCounter++;
                     continue;
                 }
 
@@ -109,6 +111,7 @@ class SendGateInData extends Command
                     $detection->is_registered = 1;
                     $detection->save();
                     $this->info("Detection {$detection->id} - NO FACE DETECTED");
+                    $this->noFaceDetectedCounter++;
                     continue;
                 }
 
@@ -155,7 +158,8 @@ class SendGateInData extends Command
                 $detection->status        = 1;
                 $detection->save();
 
-                $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY");
+                $this->sendFaceSuccessCounter++;
+                // $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY");
 
             } catch (Exception $err) {
 
@@ -163,9 +167,36 @@ class SendGateInData extends Command
                 $detection->save();
 
                 $this->info("ERROR ON DETECTION {$detection->id}: " . $err->getMessage());
+
+                sendTelegram('🟢 [SendGateInEvent] Send Gate In Errno ' . $err->getMessage());
             }
         }
 
+        // telegram message block
+        $summaryMessage = "
+🟢 <b>[SendGateInEvent] Summary Report</b>
+
+<b>Total Detections Processed:</b> {$visitor_detections->count()}
+
+<b>📊 Processing Result:</b>
+• ✅ Success Registered   : <b>{$this->sendFaceSuccessCounter}</b>
+• ❌ Failed Send              : <b>{$this->sendFaceFailedCounter}</b>
+• 🚫 No Face Detected     : <b>{$this->noFaceDetectedCounter}</b>
+
+<b>🕒 Processing Time:</b>
+• Date  : " . now()->format('Y-m-d') . "
+• Range : 01:00 → 20:00 (Default)
+
+<b>⚙️ System Status:</b>
+• Faceset Token : <code>{$this->faceset_token}</code>
+• API Endpoint  : Face++ Detect & AddFace
+
+<b>📘 Notes:</b>
+• Only <i>unregistered</i> IN records processed.
+• Local image path verified before sending.
+            ";
+
+        sendTelegram($summaryMessage);
         $this->info('=== [SendGateInData] Finished ===');
         return 0;
     }
