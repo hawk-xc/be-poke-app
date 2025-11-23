@@ -33,25 +33,30 @@ class DashboardController extends Controller
         $timezone = $this->timezone;
         $start = now($timezone)->startOfDay();
         $end = now($timezone)->endOfDay();
-        $timeLabel = 'daily'; // default
+        $timeLabel = 'today'; // default
 
         try {
             if ($request->filled('time')) {
                 switch ($request->time) {
-                    case 'monthly':
+                    case 'week':
+                        $start = now($timezone)->startOfWeek();
+                        $end = now($timezone)->endOfWeek();
+                        $timeLabel = 'week';
+                        break;
+                    case 'month':
                         $start = now($timezone)->startOfMonth();
                         $end = now($timezone)->endOfMonth();
-                        $timeLabel = 'monthly';
+                        $timeLabel = 'month';
                         break;
-                    case 'yearly':
+                    case 'year':
                         $start = now($timezone)->startOfYear();
                         $end = now($timezone)->endOfYear();
-                        $timeLabel = 'yearly';
+                        $timeLabel = 'year';
                         break;
                     default:
                         $start = now($timezone)->startOfDay();
                         $end = now($timezone)->endOfDay();
-                        $timeLabel = 'daily';
+                        $timeLabel = 'today';
                         break;
                 }
             }
@@ -68,7 +73,7 @@ class DashboardController extends Controller
             }
 
             $realTimeQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
-            $visitorIn = $realTimeQuery->where('label', 'in')->get();
+            $visitorIn = $realTimeQuery->where('label', 'in');
 
             $totalIn = $realTimeQuery->where('label', 'in')->count();
             $totalOut = $realTimeQuery->where('label', 'out')->count();
