@@ -21,6 +21,9 @@ class UserSeeder extends Seeder
         DB::table('users')->delete();
 
         $user = User::create([
+            'username' => 'admintwb12',
+            'firstname' => 'Admin',
+            'lastname' => 'true',
             'name' => 'Admin TWB',
             'email' => 'admin@deraly.id',
             'password' => bcrypt('rootme'),

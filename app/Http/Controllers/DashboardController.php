@@ -161,4 +161,40 @@ class DashboardController extends Controller
             return $this->responseError('Server Error on Dashboard API', 500);
         }
     }
+
+    public function sidebar()
+    {
+        // sidebar list
+        $pages = ['dashboard', 'visitor', 'raw_data', 'administrator', 'setting'];
+
+        // permissions mapping 
+        $permissionPages = [
+            'visitor:list' => ['dashboard', 'visitor', 'raw_data'],
+            'roles:list' => ['administrator'],
+        ];
+
+        $user = auth()->user();
+
+        if ($user === null) {
+            return $this->responseError(null, 'User not found', 404);
+        }
+
+        $allowedPages = ['setting'];
+
+        foreach ($permissionPages as $permission => $allowed) {
+            if ($user->can($permission)) {
+
+                $allowedPages = array_merge($allowedPages, $allowed);
+            }
+        }
+
+        // hilangkan duplikasi
+        $allowedPages = array_unique($allowedPages);
+
+        // kirim ke view
+        return $this->responseSuccess(
+            $allowedPages,
+            'Dashboard Sidebar Fetched Successfully!'
+        );
+    }
 }
