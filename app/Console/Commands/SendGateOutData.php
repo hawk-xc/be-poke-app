@@ -7,6 +7,7 @@ use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use App\Models\VisitorDetection;
+use App\Models\VisitorDetectionFails;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -122,6 +123,14 @@ class SendGateOutData extends Command
                 // Error state block | mem limit
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Search: HTTP {$status}");
+                    $existingFail = VisitorDetectionFails::where('rec_no', $detection->rec_no)->first();
+
+                    if (!$existingFail) {
+                        $failsDetection = new VisitorDetectionFails();
+                        $failsDetection->rec_no = $detection->rec_no;
+                        $failsDetection->save();
+                    }
+
                     continue;
                 }
 

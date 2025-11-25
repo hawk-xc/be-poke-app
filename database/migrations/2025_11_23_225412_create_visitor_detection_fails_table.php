@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('visitor_detection_fails', function (Blueprint $table) {
             $table->id();
             $table->string('rec_no')->nullable(false)->unique();
-            $table->string('status')->nullable(true);
+            $table->string('status')->nullable(true); // for no face detection
             $table->integer('try_count')->default(0);
             $table->timestamps();
         });
