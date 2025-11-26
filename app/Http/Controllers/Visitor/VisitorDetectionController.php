@@ -23,7 +23,7 @@ class VisitorDetectionController extends Controller
      * @var AuthRepository
      */
     protected AuthRepository $authRepository;
-    
+
     protected $searchableColumns = [
         'id',
         'label',
@@ -86,7 +86,7 @@ class VisitorDetectionController extends Controller
         'is_registered',
         'is_matched',
     ];
-    
+
     protected $revertColumns = [
         'is_registered' => false,
         'is_matched' => false,
@@ -462,6 +462,20 @@ class VisitorDetectionController extends Controller
                 }
             }
 
+            if ($request->filled('start_time') && $request->filled('end_time')) {
+                try {
+                    $start = Carbon::parse($request->query('start_time'))->setTime(0, 1, 0);
+                    $end = Carbon::parse($request->query('end_time'))->setTime(23, 59, 0);
+                    $timeLabel = 'custom';
+                } catch (\Exception $e) {
+                    return $this->responseError(
+                        'Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss',
+                        'Invalid Date Format',
+                        422
+                    );
+                }
+            }
+
             // Filter berdasarkan custom date range (override preset)
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 try {
@@ -669,7 +683,7 @@ class VisitorDetectionController extends Controller
     public function getQueues(Request $request): JsonResponse
     {
         $query = VisitorQueue::query();
-        
+
         $query->where('is_registered', true);
         $query->where('is_matched', false);
         $query->whereNull('rec_no_in');
