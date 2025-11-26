@@ -63,6 +63,7 @@ Route::group([
     Route::get('visitors/action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
     Route::get('visitors/action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
     Route::get('visitors/action/get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
+    Route::get('visitors/action/get-statistic', [VisitorDetectionController::class, 'getStatisticData'])->name('visitors.get-statistic-data');
 
     // Sidebar menu 
     Route::get('get-sidebar-menu', [DashboardController::class, 'sidebar'])->name('dashboard.get-sidebar');

@@ -938,4 +938,56 @@ class VisitorDetectionController extends Controller
             );
         }
     }
+
+    public function getStatisticData(Request $request): JsonResponse
+    {
+        $baseQuery = Visitor::query();
+
+        // Filter by channel
+        if ($request->filled('channel') && $request->query('channel') !== 'all') {
+            $channels = $request->query('channel');
+            if (is_array($channels)) {
+                $baseQuery->whereIn('channel', $channels);
+            } else {
+                $baseQuery->where('channel', $channels);
+            }
+        }
+
+        // Filter by time and date
+        if ($request->has('start_time') && $request->has('end_time')) {
+            $start = Carbon::parse($request->query('start_time'))->startOfDay();
+            $end = Carbon::parse($request->query('end_time'))->endOfDay();
+            $baseQuery->whereBetween('locale_time', [$start, $end]);
+        } elseif ($request->filled('time')) {
+            switch ($request->query('time')) {
+                case 'today':
+                    $baseQuery->today();
+                    break;
+                case 'week':
+                    $baseQuery->thisWeek();
+                    break;
+                case 'month':
+                    $baseQuery->thisMonth();
+                    break;
+                case 'year':
+                    $baseQuery->thisYear();
+                    break;
+            }
+        }
+
+        // Get counts for each statistic
+        $noFaceDetected = (clone $baseQuery)->where('status', false)->count();
+        $registered = (clone $baseQuery)->where('is_registered', true)->count();
+        $matched = (clone $baseQuery)->matched()->count();
+        $reverted = (clone $baseQuery)->whereNotNull('revert_by')->count();
+
+        $statistics = [
+            'no_face_detected' => $noFaceDetected,
+            'registered' => $registered,
+            'matched' => $matched,
+            'reverted' => $reverted,
+        ];
+
+        return $this->responseSuccess($statistics, 'Visitor statistics fetched successfully!');
+    }
 }
