@@ -464,8 +464,8 @@ class VisitorDetectionController extends Controller
 
             if ($request->filled('start_time') && $request->filled('end_time')) {
                 try {
-                    $start = Carbon::parse($request->query('start_time'))->setTime(0, 1, 0);
-                    $end = Carbon::parse($request->query('end_time'))->setTime(23, 59, 0);
+                    $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
+                    $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
                     $timeLabel = 'custom';
                 } catch (\Exception $e) {
                     return $this->responseError(
