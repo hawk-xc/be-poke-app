@@ -56,25 +56,6 @@ class AuthController extends Controller
         }
     }
 
-    public function register(RegisterRequest $request): JsonResponse
-    {
-        try {
-            $data = $request->only('username', 'firstname', 'lastname', 'name', 'email', 'password', 'password_confirmation');
-            $user = $this->authRepository->register($data);
-
-            if ($user && $token = $this->guard()->attempt($request->only('email', 'password'))) {
-                return $this->responseSuccess(
-                    $this->respondWithToken($token),
-                    'User Registered and Logged in Successfully'
-                );
-            }
-
-            return $this->responseError(null, 'User registration failed', Response::HTTP_BAD_REQUEST);
-        } catch (\Exception $e) {
-            return $this->responseError(null, $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-
     public function me(): JsonResponse
     {
         try {

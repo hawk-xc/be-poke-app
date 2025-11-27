@@ -22,49 +22,60 @@ Route::options('{any}', function () {
     return response()->json([], 200);
 })->where('any', '.*');
 
-Route::group([
-    'middleware' => 'api'
-], function () {
-    
-    /**
-     * Authentication Module
-     */
-    Route::group(['prefix' => 'auth'], function() {
-        Route::post('register', [AuthController::class, 'register']);
-        Route::post('login', [AuthController::class, 'login']);
-        Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
-        Route::get('me', [AuthController::class, 'me']);
-        Route::put('me', [AuthController::class, 'update']);
-        Route::put('new-password', [AuthController::class, 'newPassword'])->name('users.new-password');
-        Route::post('forgot-password', [AuthController::class, 'sendResetLink'])->name('users.forgot-password');
-        Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('users.reset-password');
-    });
+Route::group(
+    [
+        'middleware' => 'api',
+    ],
+    function () {
+        /**
+         * Authentication Module
+         */
+        Route::group(['prefix' => 'auth'], function () {
+            Route::post('login', [AuthController::class, 'login']);
+            Route::post('logout', [AuthController::class, 'logout']);
+            Route::post('refresh', [AuthController::class, 'refresh']);
+            Route::get('me', [AuthController::class, 'me']);
+            Route::put('me', [AuthController::class, 'update']);
+            Route::put('new-password', [AuthController::class, 'newPassword'])->name('users.new-password');
+            Route::post('forgot-password', [AuthController::class, 'sendResetLink'])->name('users.forgot-password');
+            Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('users.reset-password');
+        });
 
-    // Dashboard Statictic API
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        // Dashboard Statictic API
+        Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // User API
-    Route::apiResource('users', UserController::class);
-    Route::post('users/{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
+        // User API
+        Route::group(['prefix' => 'users'], function() {
+            Route::apiResource('', UserController::class);
+            Route::post('/register', [UserController::class, 'store'])->name('users.register');
+            Route::post('{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
+            Route::post('{id}/revoke-role', [UserController::class, 'revokeRole'])->name('users.revoke-role');
+            Route::put('{id}/activate-user', [UserController::class, 'activateUser'])->name('users.activate-user');
+            Route::put('{id}/deactivate-user', [UserController::class, 'deactivateUser'])->name('users.deactivate-user');
+        });
 
-    // Role API
-    Route::apiResource('roles', RoleController::class);
-    Route::get('roles/{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
-    Route::post('roles/{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
+        // Role API
+        Route::group(['prefix' => 'roles'], function() {
+            Route::apiResource('', RoleController::class);
+            Route::get('{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
+            Route::post('{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
+        });
 
-    // Visitor API
-    Route::apiResource('visitors', VisitorDetectionController::class);
-    Route::post('visitors/{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
-    Route::get('visitors/{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
-    Route::post('visitors/{id}/revert', [VisitorDetectionController::class, 'revert'])->name('visitors.revert');
-    Route::post('visitors/{id}/revert-matched', [VisitorDetectionController::class, 'revertMatchedData'])->name('visitors.revert-matched');
-    Route::delete('visitors/{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
-    Route::get('visitors/action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
-    Route::get('visitors/action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
-    Route::get('visitors/action/get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
-    Route::get('visitors/action/get-statistic', [VisitorDetectionController::class, 'getStatisticData'])->name('visitors.get-statistic-data');
+        // Visitor API
+        Route::group(['prefix' => 'visitors'], function () {
+            Route::apiResource('', VisitorDetectionController::class);
+            Route::post('{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
+            Route::get('{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
+            Route::post('{id}/revert', [VisitorDetectionController::class, 'revert'])->name('visitors.revert');
+            Route::post('{id}/revert-matched', [VisitorDetectionController::class, 'revertMatchedData'])->name('visitors.revert-matched');
+            Route::delete('{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
+            Route::get('action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
+            Route::get('action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
+            Route::get('action/get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
+            Route::get('action/get-statistic', [VisitorDetectionController::class, 'getStatisticData'])->name('visitors.get-statistic-data');
+        });
 
-    // Sidebar menu 
-    Route::get('get-sidebar-menu', [DashboardController::class, 'sidebar'])->name('dashboard.get-sidebar');
-});
+        // Sidebar menu
+        Route::get('get-sidebar-menu', [DashboardController::class, 'sidebar'])->name('dashboard.get-sidebar');
+    },
+);

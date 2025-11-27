@@ -29,11 +29,12 @@ class UserController extends Controller
     {
         $this->middleware(['permission:users:list'])->only(['index', 'show']);
         $this->middleware(['permission:users:create'])->only('store');
-        $this->middleware(['permission:users:edit'])->only('update');
+        $this->middleware(['permission:users:edit'])->only('update', 'activateUser', 'deactivateUser');
         $this->middleware(['permission:users:delete'])->only(['destroy']);
         $this->middleware(['permission:roles:create'])->only(['assignRole']);
-    
-    
+        $this->middleware(['permission:roles:delete'])->only(['revokeRole']);
+
+
         $this->authRepository = $ar;
     }
 
@@ -52,29 +53,43 @@ class UserController extends Controller
         return $this->responseSuccess($users, 'Users retrieved successfully');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-            'username' => 'required|string|max:255|unique:users',
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'nullable|string|max:255',
+            'name'                  => 'required|string|max:255',
+            'email'                 => 'required|string|email|max:255|unique:users',
+            'password'              => 'nullable|string|min:8|confirmed',
+            'username'              => 'nullable|string|max:255|unique:users',
+            'firstname'             => 'nullable|string|max:255',
+            'lastname'              => 'nullable|string|max:255',
+            'roles'                 => 'nullable|string',
+            'roles.*'               => 'string|exists:roles,name',
         ]);
 
         DB::beginTransaction();
         try {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'username' => $request->username,
-                'firstname' => $request->firstname,
-                'lastname' => $request->lastname,
-                'fullname' => $request->firstname . ' ' . $request->lastname,
-            ]);
+            $data = [
+                'is_active'         => false,
+                'name'              => $request->name,
+                'email'             => $request->email,
+                'username'          => $request->username,
+                'firstname'         => $request->firstname,
+                'lastname'          => $request->lastname,
+                'fullname'          => $request->firstname . ' ' . $request->lastname,
+            ];
+
+            if ($request->filled('password')) {
+                $data['password'] = Hash::make($request->password);
+            }
+
+            $user = User::create($data);
+
+            if ($request->has('roles') && !empty($request->roles)) {
+                $user->assignRole($request->roles);
+            }
+
             DB::commit();
+
             return $this->responseSuccess($user, 'User created successfully');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -173,7 +188,7 @@ class UserController extends Controller
         }
     }
 
-    public function assignRole(Request $request, string $id)
+    public function assignRole(Request $request, string $id): JsonResponse
     {
         $user = User::find($id);
         if (!$user) {
@@ -181,13 +196,84 @@ class UserController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|string|exists:roles,name',
+            'roles'   => 'required|array',
+            'roles.*' => 'string|exists:roles,name',
         ]);
 
+        DB::beginTransaction();
         try {
-            $user->assignRole($request->role);
-            return $this->responseSuccess($user, 'Role assigned successfully');
+            $user->assignRole($request->roles);
+            DB::commit();
+            return $this->responseSuccess($user->load('roles'), 'Roles assigned successfully');
         } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->responseError(null, $e->getMessage(), 500);
+        }
+    }
+
+    public function revokeRole(Request $request, string $id): JsonResponse
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return $this->responseError(null, 'User not found', 404);
+        }
+
+        $request->validate([
+            'roles'   => 'required|array',
+            'roles.*' => 'string|exists:roles,name'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->roles as $role) {
+                if ($user->hasRole($role)) {
+                    $user->removeRole($role);
+                }
+            }
+            DB::commit();
+            return $this->responseSuccess($user->load('roles'), 'Roles revoked successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->responseError(null, $e->getMessage(), 500);
+        }
+    }
+
+    public function activateUser(string $id): JsonResponse
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return $this->responseError(null, 'User not found', 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            $user->is_active = true;
+            $user->save();
+            DB::commit();
+            
+            return $this->responseSuccess($user, 'User activated successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->responseError(null, $e->getMessage(), 500);
+        }
+    }
+
+    public function deactivateUser(string $id): JsonResponse
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return $this->responseError(null, 'User not found', 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            $user->is_active = false;
+            $user->save();
+            DB::commit();
+            
+            return $this->responseSuccess($user, 'User deactivated successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
             return $this->responseError(null, $e->getMessage(), 500);
         }
     }
