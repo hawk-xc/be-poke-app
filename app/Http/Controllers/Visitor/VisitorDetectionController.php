@@ -82,8 +82,18 @@ class VisitorDetectionController extends Controller
 
         $baseQuery->select($this->selectColumns);
 
+        // Filter by Processed Data
+        if ($request->filled('only_processed') && $request->query('only_processed') === 'true') {
+            $baseQuery->whereNotNull('face_token')->where('is_registered', true);
+        }
+
+        // Filter by Processed Data
+        if ($request->filled('only_matched') && $request->query('only_matched') === 'true') {
+            $baseQuery->where('is_matched', true)->where('is_registered', true);
+        }
+        
         // Filter embedding & registered
-        if ($request->query('data_status') === 'with_embedding') {
+        if ($request->filled('data_status') && $request->query('data_status') === 'with_embedding') {
             $baseQuery->whereNotNull('embedding_id')->where('is_registered', true);
         }
 
