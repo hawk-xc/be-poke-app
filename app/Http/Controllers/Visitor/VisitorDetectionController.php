@@ -24,68 +24,9 @@ class VisitorDetectionController extends Controller
      */
     protected AuthRepository $authRepository;
 
-    protected $searchableColumns = [
-        'id',
-        'label',
-        'rec_no',
-        'channel',
-        'code',
-        'action',
-        'class',
-        'event_type',
-        'name',
-        'locale_time',
-        'face_sex',
-        'object_action',
-        'object_sex',
-        'emotion',
-        'passerby_group_id',
-        'passerby_uid',
-        'person_uid',
-        'person_name',
-        'person_sex',
-        'person_group_name',
-        'person_group_type',
-        'person_pic_url',
-        'similarity',
-        'status',
-    ];
+    protected $searchableColumns = ['id', 'label', 'rec_no', 'channel', 'code', 'action', 'class', 'event_type', 'name', 'locale_time', 'face_sex', 'object_action', 'object_sex', 'emotion', 'passerby_group_id', 'passerby_uid', 'person_uid', 'person_name', 'person_sex', 'person_group_name', 'person_group_type', 'person_pic_url', 'similarity', 'status'];
 
-    protected $selectColumns = [
-        'id',
-        'rec_no',
-        'rec_no_in',
-        'face_token',
-        'faceset_token',
-        'channel',
-        'class',
-        'event_type',
-        'locale_time',
-        'out_locale_time',
-        'utc',
-        'real_utc',
-        'glasses',
-        'mustache',
-        'gate_name',
-        'face_age',
-        'face_sex',
-        'emotion',
-        'person_id',
-        'embedding_id',
-        'duration',
-        'person_group_name',
-        'person_group_type',
-        'person_pic_url',
-        'similarity',
-        'status',
-        'deleted_at',
-        'created_at',
-        'updated_at',
-        'label',
-        'revert_by',
-        'is_registered',
-        'is_matched',
-    ];
+    protected $selectColumns = ['id', 'rec_no', 'rec_no_in', 'face_token', 'faceset_token', 'channel', 'class', 'event_type', 'locale_time', 'out_locale_time', 'utc', 'real_utc', 'glasses', 'mustache', 'gate_name', 'face_age', 'face_sex', 'emotion', 'person_id', 'embedding_id', 'duration', 'person_group_name', 'person_group_type', 'person_pic_url', 'similarity', 'status', 'deleted_at', 'created_at', 'updated_at', 'label', 'revert_by', 'is_registered', 'is_matched'];
 
     protected $revertColumns = [
         'is_registered' => false,
@@ -98,7 +39,7 @@ class VisitorDetectionController extends Controller
         'similarity' => null,
         'duration' => 0,
         'rec_no_in' => null,
-        'revert_by' => 'human'
+        'revert_by' => 'human',
     ];
 
     /**
@@ -135,14 +76,35 @@ class VisitorDetectionController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $timezone = config('app.timezone', 'Asia/Jakarta'); 
+        
         $baseQuery = Visitor::query();
 
         $baseQuery->select($this->selectColumns);
 
         // Filter embedding & registered
         if ($request->query('data_status') === 'with_embedding') {
-            $baseQuery->whereNotNull('embedding_id')
-                ->where('is_registered', true);
+            $baseQuery->whereNotNull('embedding_id')->where('is_registered', true);
+        }
+
+        // Filter By Channel
+        if ($request->filled('channel') && $request->query('channel') !== 'all') {
+            $channels = $request->query('channel');
+            if (is_array($channels)) {
+                $baseQuery->whereIn('channel', $channels);
+            } else {
+                $baseQuery->where('channel', $channels);
+            }
+        }
+
+        // Filter By Reverted Data
+        if ($request->filled('reverted_data') && $request->query('reverted_data') === 'true') {
+            $baseQuery->whereNotNull('revert_by');
+        }
+
+        // Filter By Face Status Data
+        if ($request->filled('face_status') && $request->query('face_status') === 'false') {
+            $baseQuery->where('status', false);
         }
 
         // Filter soft delete
@@ -190,7 +152,7 @@ class VisitorDetectionController extends Controller
             }
         }
 
-        // Filter waktu
+        // Time Filter
         $now = Carbon::now();
         if ($request->has('start_time') && $request->has('end_time')) {
             $start = Carbon::parse($request->query('start_time'))->setTime(0, 1, 0);
@@ -214,6 +176,16 @@ class VisitorDetectionController extends Controller
             }
         }
 
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            try {
+                $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
+                $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
+                $timeLabel = 'custom';
+            } catch (\Exception $e) {
+                return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
+            }
+        }
+
         // SUM / COUNT
         if ($request->query('sum') === 'count_data') {
             $count = (clone $baseQuery)->count();
@@ -224,30 +196,26 @@ class VisitorDetectionController extends Controller
         // MATCH HANDLER
         // ==============
         if ($request->has('match') && $request->query('match') === 'true') {
-            $queryIn = (clone $baseQuery)
-                ->where('is_matched', true)
-                ->where('is_registered', true)
-                ->where('label', 'in');
+            $queryIn = (clone $baseQuery)->where('is_matched', true)->where('is_registered', true)->where('label', 'in');
 
-            $queryOut = (clone $baseQuery)
-                ->where('is_matched', true)
-                ->where('is_registered', true)
-                ->where('label', 'out');
+            $queryOut = (clone $baseQuery)->where('is_matched', true)->where('is_registered', true)->where('label', 'out');
 
             // Pagination
             $perPage = $request->query('per_page', 15);
             $dataIn = $queryIn->paginate($perPage, ['*'], 'in_page');
             $dataOut = $queryOut->paginate($perPage, ['*'], 'out_page');
 
-            return $this->responseSuccess([
-                'data_in' => $dataIn,
-                'data_out' => $dataOut
-            ], 'Matched Visitors (IN/OUT) Fetched Successfully!');
+            return $this->responseSuccess(
+                [
+                    'data_in' => $dataIn,
+                    'data_out' => $dataOut,
+                ],
+                'Matched Visitors (IN/OUT) Fetched Successfully!',
+            );
         }
 
         if ($request->has('is_registered') && $request->query('is_registered') === 'true') {
-            $baseQuery->where('is_registered', true)
-                ->whereNotNull('embedding_id');
+            $baseQuery->where('is_registered', true)->whereNotNull('embedding_id');
         }
 
         // Sorting
@@ -264,7 +232,6 @@ class VisitorDetectionController extends Controller
 
         return $this->responseSuccess($visitors, 'Visitors Fetched Successfully!');
     }
-
 
     /**
      * Store a newly created resource in storage.
@@ -301,7 +268,6 @@ class VisitorDetectionController extends Controller
         }
     }
 
-
     /**
      * Display the specified resource.
      *
@@ -318,11 +284,7 @@ class VisitorDetectionController extends Controller
         ];
 
         if (!is_null($visitor->embedding_id)) {
-            $relatedVisitors = Visitor::withTrashed()
-                ->where('embedding_id', $visitor->embedding_id)
-                ->where('id', '!=', $visitor->id)
-                ->orderBy('created_at', 'asc')
-                ->get();
+            $relatedVisitors = Visitor::withTrashed()->where('embedding_id', $visitor->embedding_id)->where('id', '!=', $visitor->id)->orderBy('created_at', 'asc')->get();
 
             $labeled = $relatedVisitors->map(function ($item) use ($visitor) {
                 $item->label_relation = $visitor->label === 'in' ? 'out' : 'in';
@@ -334,7 +296,6 @@ class VisitorDetectionController extends Controller
 
         return $this->responseSuccess($visitor_data, 'Visitor fetched successfully!');
     }
-
 
     /**
      * Update the specified resource in storage.
@@ -364,7 +325,6 @@ class VisitorDetectionController extends Controller
         }
     }
 
-
     /**
      * Soft delete the specified visitor.
      *
@@ -379,7 +339,6 @@ class VisitorDetectionController extends Controller
         return $this->responseSuccess(null, 'Visitor Soft Deleted Successfully!');
     }
 
-
     /**
      * Restore the specified soft-deleted visitor.
      *
@@ -393,7 +352,6 @@ class VisitorDetectionController extends Controller
         $visitor->restore();
         return $this->responseSuccess($visitor, 'Visitor Restored Successfully!');
     }
-
 
     /**
      * Permanently remove the specified resource from storage.
@@ -468,26 +426,18 @@ class VisitorDetectionController extends Controller
                     $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
                     $timeLabel = 'custom';
                 } catch (\Exception $e) {
-                    return $this->responseError(
-                        'Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss',
-                        'Invalid Date Format',
-                        422
-                    );
+                    return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
                 }
             }
 
-            // Filter berdasarkan custom date range (override preset)
+            // Filter date range (override preset)
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 try {
                     $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
                     $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
                     $timeLabel = 'custom';
                 } catch (\Exception $e) {
-                    return $this->responseError(
-                        'Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss',
-                        'Invalid Date Format',
-                        422
-                    );
+                    return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
                 }
             }
 
@@ -524,9 +474,7 @@ class VisitorDetectionController extends Controller
             // ========================
             // DURATION STATISTICS
             // ========================
-            $matchedVisitors = $visitors->where('label', 'out')
-                ->where('is_matched', 1)
-                ->whereNotNull('duration');
+            $matchedVisitors = $visitors->where('label', 'out')->where('is_matched', 1)->whereNotNull('duration');
 
             // Total seluruh jam (dari duration)
             $totalHours = $matchedVisitors->sum('duration') / 60; // Convert minutes to hours
@@ -540,15 +488,14 @@ class VisitorDetectionController extends Controller
             // ========================
             // PEAK HOURS (07:00 - 17:59)
             // ========================
-            $peakHoursData = VisitorDetection::selectRaw('
-                HOUR(locale_time) as hour, 
+            $peakHoursData = VisitorDetection::selectRaw(
+                '
+                HOUR(locale_time) as hour,
                 COUNT(*) as visit_count,
                 AVG(duration) as avg_duration
-            ')
-                ->whereBetween('locale_time', [
-                    $start->copy()->setTime(7, 0),
-                    $end->copy()->setTime(17, 59, 59),
-                ])
+            ',
+            )
+                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
                 ->where('label', 'out')
                 ->where('is_matched', 1)
                 ->groupBy('hour')
@@ -566,9 +513,7 @@ class VisitorDetectionController extends Controller
                 $hourData = $peakHoursData->get($h);
 
                 $visitCount = $hourData ? $hourData->visit_count : 0;
-                $avgDurationMinutes = $hourData && $hourData->avg_duration
-                    ? round($hourData->avg_duration, 2)
-                    : 0;
+                $avgDurationMinutes = $hourData && $hourData->avg_duration ? round($hourData->avg_duration, 2) : 0;
 
                 // Tambahkan ke array
                 $hourlyVisits[] = [
@@ -656,17 +601,13 @@ class VisitorDetectionController extends Controller
 
             return $this->responseSuccess($reportData, 'Report Fetched Successfully!');
         } catch (\Exception $err) {
-            return $this->responseError(
-                null,
-                $err->getMessage(),
-                Response::HTTP_INTERNAL_SERVER_ERROR
-            );
+            return $this->responseError(null, $err->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
      * Get Visitor Queues (Unmatched Visitors)
-     * 
+     *
      * @queryParam label string Filter by label (in/out)
      * @queryParam search string Search by face_token, name, phone_number, address, person_group, sex
      * @queryParam search_by string Search by column (face_token, name, phone_number, address, person_group, sex)
@@ -677,7 +618,7 @@ class VisitorDetectionController extends Controller
      * @queryParam sort_dir string Sort direction (asc/desc)
      * @queryParam per_page int Number of items to return per page
      * @queryParam sum string Count data if given (count_data)
-     * 
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function getQueues(Request $request): JsonResponse
@@ -863,15 +804,18 @@ class VisitorDetectionController extends Controller
             $result[] = $out;
         }
 
-        return $this->responseSuccess([
-            'data' => $result,
-            'pagination' => [
-                'current_page' => $dataOut->currentPage(),
-                'last_page' => $dataOut->lastPage(),
-                'per_page' => $dataOut->perPage(),
-                'total' => $dataOut->total(),
-            ]
-        ], 'Matched Visitor IN/OUT Data Fetched Successfully!');
+        return $this->responseSuccess(
+            [
+                'data' => $result,
+                'pagination' => [
+                    'current_page' => $dataOut->currentPage(),
+                    'last_page' => $dataOut->lastPage(),
+                    'per_page' => $dataOut->perPage(),
+                    'total' => $dataOut->total(),
+                ],
+            ],
+            'Matched Visitor IN/OUT Data Fetched Successfully!',
+        );
     }
 
     /**
@@ -915,20 +859,11 @@ class VisitorDetectionController extends Controller
         $visitor_out = Visitor::findOrFail($id);
 
         try {
-            if (
-                $visitor_out->label === 'out' &&
-                !is_null($visitor_out->rec_no_in) &&
-                $visitor_out->is_matched == true &&
-                !is_null($visitor_out->face_token)
-            ) {
+            if ($visitor_out->label === 'out' && !is_null($visitor_out->rec_no_in) && $visitor_out->is_matched == true && !is_null($visitor_out->face_token)) {
                 $visitor_in = $visitor_out->visitorIn;
 
                 if (!$visitor_in) {
-                    return $this->responseError(
-                        'Visitor In Not Found!',
-                        'Visitor Match Data Revert Failed!',
-                        500
-                    );
+                    return $this->responseError('Visitor In Not Found!', 'Visitor Match Data Revert Failed!', 500);
                 }
 
                 // revert
@@ -939,17 +874,9 @@ class VisitorDetectionController extends Controller
             }
 
             // kondisi utama tidak terpenuhi
-            return $this->responseError(
-                'Visitor Out Data Not Valid!',
-                'Visitor Match Data Revert Failed!',
-                500
-            );
+            return $this->responseError('Visitor Out Data Not Valid!', 'Visitor Match Data Revert Failed!', 500);
         } catch (Exception $err) {
-            return $this->responseError(
-                $err->getMessage(),
-                'Visitor Match Data Revert Failed!',
-                500
-            );
+            return $this->responseError($err->getMessage(), 'Visitor Match Data Revert Failed!', 500);
         }
     }
 
@@ -990,7 +917,7 @@ class VisitorDetectionController extends Controller
         }
 
         // Get counts for each statistic
-        $noFaceDetected = (clone $baseQuery)->where('status', false)->count();
+        $noFaceDetected = (clone $baseQuery)->where('status', false)->where('is_matched', false)->count();
         $registered = (clone $baseQuery)->where('is_registered', true)->count();
         $matched = (clone $baseQuery)->matched()->count();
         $reverted = (clone $baseQuery)->whereNotNull('revert_by')->count();
