@@ -2,16 +2,17 @@
 
 namespace App\Http\Controllers\User;
 
-use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Traits\ResponseTrait;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use App\Repositories\AuthRepository;
-use Spatie\Permission\Models\Role;
+use App\Traits\ResponseTrait;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
+use App\Http\Controllers\Controller;
+use App\Repositories\AuthRepository;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -27,18 +28,17 @@ class UserController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        $this->middleware(['permission:users:list'])->only(['index', 'show']);
+        $this->middleware(['permission:users:list'])->only(['index', 'show', 'getUserPassword']);
         $this->middleware(['permission:users:create'])->only('store');
         $this->middleware(['permission:users:edit'])->only('update', 'activateUser', 'deactivateUser');
         $this->middleware(['permission:users:delete'])->only(['destroy']);
         $this->middleware(['permission:roles:create'])->only(['assignRole']);
         $this->middleware(['permission:roles:delete'])->only(['revokeRole']);
 
-
         $this->authRepository = $ar;
     }
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $users = User::with('roles');
 
@@ -79,8 +79,13 @@ class UserController extends Controller
             ];
 
             if ($request->filled('password')) {
-                $data['password'] = Hash::make($request->password);
+                $plainPassword = $request->password;
+            } else {
+                $plainPassword = Str::random(10);
             }
+
+            $data['password'] = Hash::make($plainPassword);
+            $data['secure_password'] = encrypt($plainPassword); 
 
             $user = User::create($data);
 
@@ -90,6 +95,8 @@ class UserController extends Controller
 
             DB::commit();
 
+            $user->plain_password = $plainPassword;
+
             return $this->responseSuccess($user, 'User created successfully');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -97,7 +104,7 @@ class UserController extends Controller
         }
     }
 
-    public function show(string $id)
+    public function show(string $id): JsonResponse
     {
         $user = User::with('roles')->find($id);
         if (!$user) {
@@ -106,7 +113,7 @@ class UserController extends Controller
         return $this->responseSuccess($user, 'User retrieved successfully');
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id): JsonResponse
     {
         $user = User::find($id);
         if (!$user) {
@@ -146,6 +153,7 @@ class UserController extends Controller
         try {
             if (isset($data['password'])) {
                 $data['password'] = Hash::make($data['password']);
+                $data['secure_password'] = encrypt($data['password']);
             }
 
             if (isset($data['firstname']) || isset($data['lastname'])) {
@@ -166,7 +174,7 @@ class UserController extends Controller
     }
 
 
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
         $user = User::find($id);
         if (!$user) {
@@ -191,13 +199,13 @@ class UserController extends Controller
     public function assignRole(Request $request, string $id): JsonResponse
     {
         $user = User::find($id);
+        
         if (!$user) {
             return $this->responseError(null, 'User not found', 404);
         }
 
         $request->validate([
-            'roles'   => 'required|array',
-            'roles.*' => 'string|exists:roles,name',
+            'roles'   => 'required|string',
         ]);
 
         DB::beginTransaction();
@@ -241,16 +249,18 @@ class UserController extends Controller
     public function activateUser(string $id): JsonResponse
     {
         $user = User::find($id);
+
         if (!$user) {
             return $this->responseError(null, 'User not found', 404);
         }
 
         DB::beginTransaction();
+
         try {
             $user->is_active = true;
             $user->save();
             DB::commit();
-            
+
             return $this->responseSuccess($user, 'User activated successfully');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -270,11 +280,30 @@ class UserController extends Controller
             $user->is_active = false;
             $user->save();
             DB::commit();
-            
+
             return $this->responseSuccess($user, 'User deactivated successfully');
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->responseError(null, $e->getMessage(), 500);
         }
+    }
+
+    public function getUserPassword(string $id): JsonResponse
+    {
+        $user = User::find($id);
+        
+        if ($user->secure_password == null) {
+            return $this->responseError(null, 'User secure password not found', 404);
+        }
+
+        $user_password = decrypt($user->secure_password);
+
+        if (!$user_password) {
+            return $this->responseError(null, 'User password not found', 404);
+        }
+
+        return $this->responseSuccess([
+            'secure_password' => $user_password
+        ], 'User password fetched successfully');
     }
 }

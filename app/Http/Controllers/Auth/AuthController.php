@@ -41,10 +41,18 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         try {
-            $credentials = $request->only('email', 'password');
+            $credentials = [
+                'email'     => $request->email,
+                'password'  => $request->password,
+                'is_active' => true
+            ];
 
             if (!$token = $this->guard()->attempt($credentials)) {
-                return $this->responseError(null, 'Invalid Email or Password !', Response::HTTP_UNAUTHORIZED);
+                $user = User::where('email', $request->email)->first();
+                if ($user && !$user->is_active) {
+                    return $this->responseError(null, 'Account is not activated.', Response::HTTP_UNAUTHORIZED);
+                }
+                return $this->responseError(null, 'Invalid Email or Password!', Response::HTTP_UNAUTHORIZED);
             }
 
             return $this->responseSuccess(
@@ -74,7 +82,7 @@ class AuthController extends Controller
                 'name'      => 'sometimes|string|max:255',
                 'username'  => 'sometimes|string|max:255|unique:users,username,' . $user->id,
                 'firstname' => 'sometimes|string|max:255',
-                'lastname'  => 'sometimes|string|max:255', 
+                'lastname'  => 'sometimes|string|max:255',
                 'email'     => 'sometimes|email|unique:users,email,' . $user->id,
                 'avatar'    => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             ]);

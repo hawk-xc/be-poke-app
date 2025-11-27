@@ -45,25 +45,25 @@ Route::group(
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
         // User API
-        Route::group(['prefix' => 'users'], function() {
-            Route::apiResource('', UserController::class);
-            Route::post('/register', [UserController::class, 'store'])->name('users.register');
+        Route::group(['prefix' => 'users'], function () {
+            Route::apiResource('/', UserController::class)->parameters(['' => 'user']);
             Route::post('{id}/assign-role', [UserController::class, 'assignRole'])->name('users.assign-role');
             Route::post('{id}/revoke-role', [UserController::class, 'revokeRole'])->name('users.revoke-role');
             Route::put('{id}/activate-user', [UserController::class, 'activateUser'])->name('users.activate-user');
             Route::put('{id}/deactivate-user', [UserController::class, 'deactivateUser'])->name('users.deactivate-user');
+            Route::get('{id}/get-user-password', [UserController::class, 'getUserPassword'])->name('users.get-user-password');
         });
 
         // Role API
-        Route::group(['prefix' => 'roles'], function() {
-            Route::apiResource('', RoleController::class);
+        Route::group(['prefix' => 'roles'], function () {
+            Route::apiResource('', RoleController::class)->parameters(['' => 'roles']);
             Route::get('{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
             Route::post('{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
         });
 
         // Visitor API
         Route::group(['prefix' => 'visitors'], function () {
-            Route::apiResource('', VisitorDetectionController::class);
+            Route::apiResource('', VisitorDetectionController::class)->parameters(['' => 'visitors']);
             Route::post('{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
             Route::get('{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
             Route::post('{id}/revert', [VisitorDetectionController::class, 'revert'])->name('visitors.revert');
