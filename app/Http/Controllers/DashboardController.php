@@ -112,16 +112,22 @@ class DashboardController extends Controller
                 ->pluck('count', 'hour')
                 ->toArray();
 
-            // Isi jam kosong dengan 0
-            $hours = range(7, 17);
-            $busyHours = collect($hours)
-                ->mapWithKeys(function ($h) use ($busyHours) {
-                    $start = str_pad($h, 2, '0', STR_PAD_LEFT) . '.00';
-                    $end = str_pad($h + 1, 2, '0', STR_PAD_LEFT) . '.00';
+            // $hours = range(7, 17);
+            // $busyHours = collect($hours)
+            //     ->mapWithKeys(function ($h) use ($busyHours) {
+            //         $start = str_pad($h, 2, '0', STR_PAD_LEFT) . '.00';
+            //         $end = str_pad($h + 1, 2, '0', STR_PAD_LEFT) . '.00';
 
-                    return ["$start - $end" => $busyHours[$h] ?? 0];
-                })
-                ->toArray();
+            //         return ["$start - $end" => $busyHours[$h] ?? 0];
+            //     })
+            //     ->toArray();
+
+            $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
+                ->whereBetween('locale_time', [ $start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59), ])
+                ->where('label', 'out')
+                ->groupBy('hour')
+                ->orderBy('hour')
+                ->pluck('count', 'hour') ->toArray();
 
             $realTimeData = [
                 'total' => [

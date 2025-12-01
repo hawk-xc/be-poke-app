@@ -524,17 +524,19 @@ class VisitorDetectionController extends Controller
                 $visitCount = $hourData ? $hourData->visit_count : 0;
                 $avgDurationMinutes = $hourData && $hourData->avg_duration ? round($hourData->avg_duration, 2) : 0;
 
-                // Tambahkan ke array
+                $start_hour = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
+                $end_hour = str_pad($h + 1, 2, '0', STR_PAD_LEFT) . ':00';
+
                 $hourlyVisits[] = [
-                    'hour' => $h,
+                    'hour' => "$start_hour - $end_hour",
                     'visitor' => $visitCount,
                     'length_of_visit' => $avgDurationMinutes,
                 ];
 
-                // Track peak hour
+                // Peak Hour
                 if ($visitCount > $peakHourCount) {
                     $peakHourCount = $visitCount;
-                    $peakHour = $h;
+                    $peakHour = "$start_hour - $end_hour";
                 }
             }
 
@@ -905,14 +907,14 @@ class VisitorDetectionController extends Controller
         }
 
         if ($request->filled('start_time') && $request->filled('end_time')) {
-                try {
-                    $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
-                    $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
-                    $timeLabel = 'custom';
-                } catch (\Exception $e) {
-                    return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
-                }
+            try {
+                $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
+                $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
+                $timeLabel = 'custom';
+            } catch (\Exception $e) {
+                return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
             }
+        }
 
         // Filter by date and date
         if ($request->has('start_date') && $request->has('end_date')) {
