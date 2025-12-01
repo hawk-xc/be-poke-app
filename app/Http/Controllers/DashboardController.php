@@ -64,7 +64,7 @@ class DashboardController extends Controller
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 try {
                     $start = Carbon::parse($request->start_date, $timezone)->setTime(0, 1, 0);
-                    $end   = Carbon::parse($request->end_date, $timezone)->setTime(23, 59, 0);
+                    $end = Carbon::parse($request->end_date, $timezone)->setTime(23, 59, 0);
 
                     $timeLabel = 'custom';
                 } catch (\Exception $e) {
@@ -105,10 +105,7 @@ class DashboardController extends Controller
 
             // PEAK HOURS (07.00 - 17.59)
             $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
-                ->whereBetween('locale_time', [
-                    $start->copy()->setTime(7, 0),
-                    $end->copy()->setTime(17, 59, 59),
-                ])
+                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
                 ->where('label', 'out')
                 ->groupBy('hour')
                 ->orderBy('hour')
@@ -117,11 +114,15 @@ class DashboardController extends Controller
 
             // Isi jam kosong dengan 0
             $hours = range(7, 17);
-            $busyHours = collect($hours)->mapWithKeys(fn($h) => [$h => $busyHours[$h] ?? 0])->toArray();
+            $busyHours = collect($hours)
+                ->mapWithKeys(function ($h) use ($busyHours) {
+                    $start = str_pad($h, 2, '0', STR_PAD_LEFT) . '.00';
+                    $end = str_pad($h + 1, 2, '0', STR_PAD_LEFT) . '.00';
 
-            // =======================
-            // SUSUN HASIL RESPONSE
-            // =======================
+                    return ["$start - $end" => $busyHours[$h] ?? 0];
+                })
+                ->toArray();
+
             $realTimeData = [
                 'total' => [
                     'all' => $totalAll,
@@ -151,10 +152,13 @@ class DashboardController extends Controller
                 ],
             ];
 
-            return $this->responseSuccess([
-                'realtime_data' => $realTimeData,
-                'time' => $timeLabel,
-            ], 'Dashboard Statistic Fetched Successfully!');
+            return $this->responseSuccess(
+                [
+                    'realtime_data' => $realTimeData,
+                    'time' => $timeLabel,
+                ],
+                'Dashboard Statistic Fetched Successfully!',
+            );
         } catch (Exception $errr) {
             Log::info('Error on Dashboard API: ' . $errr->getMessage());
 
@@ -167,7 +171,7 @@ class DashboardController extends Controller
         // sidebar list
         $pages = ['dashboard', 'visitor', 'raw_data', 'administrator', 'setting'];
 
-        // permissions mapping 
+        // permissions mapping
         $permissionPages = [
             'visitor:list' => ['dashboard', 'visitor', 'raw_data'],
             'roles:list' => ['administrator'],
@@ -183,7 +187,6 @@ class DashboardController extends Controller
 
         foreach ($permissionPages as $permission => $allowed) {
             if ($user->can($permission)) {
-
                 $allowedPages = array_merge($allowedPages, $allowed);
             }
         }
@@ -192,9 +195,6 @@ class DashboardController extends Controller
         $allowedPages = array_unique($allowedPages);
 
         // kirim ke view
-        return $this->responseSuccess(
-            $allowedPages,
-            'Dashboard Sidebar Fetched Successfully!'
-        );
+        return $this->responseSuccess($allowedPages, 'Dashboard Sidebar Fetched Successfully!');
     }
 }

@@ -76,8 +76,8 @@ class VisitorDetectionController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $timezone = config('app.timezone', 'Asia/Jakarta'); 
-        
+        $timezone = config('app.timezone', 'Asia/Jakarta');
+
         $baseQuery = Visitor::query();
 
         $baseQuery->select($this->selectColumns);
@@ -91,7 +91,7 @@ class VisitorDetectionController extends Controller
         if ($request->filled('only_matched') && $request->query('only_matched') === 'true') {
             $baseQuery->where('is_matched', true)->where('is_registered', true);
         }
-        
+
         // Filter embedding & registered
         if ($request->filled('data_status') && $request->query('data_status') === 'with_embedding') {
             $baseQuery->whereNotNull('embedding_id')->where('is_registered', true);
@@ -394,7 +394,7 @@ class VisitorDetectionController extends Controller
     public function getReport(Request $request): JsonResponse
     {
         try {
-            $timezone = config('app.timezone', 'Asia/Jakarta'); // atau $this->timezone
+            $timezone = config('app.timezone', 'Asia/Jakarta');
             $start = now($timezone)->startOfDay();
             $end = now($timezone)->endOfDay();
             $timeLabel = 'daily'; // default
@@ -440,7 +440,6 @@ class VisitorDetectionController extends Controller
                 }
             }
 
-            // Filter date range (override preset)
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 try {
                     $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
@@ -893,6 +892,7 @@ class VisitorDetectionController extends Controller
     public function getStatisticData(Request $request): JsonResponse
     {
         $baseQuery = Visitor::query();
+        $timezone = config('app.timezone', 'Asia/Jakarta');
 
         // Filter by channel
         if ($request->filled('channel') && $request->query('channel') !== 'all') {
@@ -904,10 +904,21 @@ class VisitorDetectionController extends Controller
             }
         }
 
-        // Filter by time and date
-        if ($request->has('start_time') && $request->has('end_time')) {
-            $start = Carbon::parse($request->query('start_time'))->startOfDay();
-            $end = Carbon::parse($request->query('end_time'))->endOfDay();
+        if ($request->filled('start_time') && $request->filled('end_time')) {
+                try {
+                    $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
+                    $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
+                    $timeLabel = 'custom';
+                } catch (\Exception $e) {
+                    return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
+                }
+            }
+
+        // Filter by date and date
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
+            $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
+            $timeLabel = 'custom';
             $baseQuery->whereBetween('locale_time', [$start, $end]);
         } elseif ($request->filled('time')) {
             switch ($request->query('time')) {
@@ -937,6 +948,11 @@ class VisitorDetectionController extends Controller
             'registered' => $registered,
             'matched' => $matched,
             'reverted' => $reverted,
+            'filter_info' => [
+                'time_range' => $timeLabel,
+                'start_date' => $start->toDateTimeString(),
+                'end_date' => $end->toDateTimeString(),
+            ],
         ];
 
         return $this->responseSuccess($statistics, 'Visitor statistics fetched successfully!');

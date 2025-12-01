@@ -52,6 +52,7 @@ Route::group(
             Route::put('{id}/activate-user', [UserController::class, 'activateUser'])->name('users.activate-user');
             Route::put('{id}/deactivate-user', [UserController::class, 'deactivateUser'])->name('users.deactivate-user');
             Route::get('{id}/get-user-password', [UserController::class, 'getUserPassword'])->name('users.get-user-password');
+            Route::get('/action/get-status', [UserController::class, 'getStatus'])->name('users.get-status');
         });
 
         // Role API

@@ -306,4 +306,27 @@ class UserController extends Controller
             'secure_password' => $user_password
         ], 'User password fetched successfully');
     }
+
+    public function getStatus(Request $request): JsonResponse
+    {
+        $query = User::query();
+
+        if ($request->filled('status') && $request->query('status') === 'active') {
+            $query->where('is_active', true);
+        } else {
+            $query->where('is_active', false);
+        }
+
+        if ($request->query('sum') === 'count_data') {
+            $count = (clone $query)->count();
+            return $this->responseSuccess(['count' => $count], 'Matched Visitors Counted Successfully!');
+        }
+
+        $data = [
+            'data' => $query->get(),
+            'status' => $request->query('status') ? 'active' : 'false'
+        ];
+
+        return $this->responseSuccess($data, 'Users retrieved successfully');
+    }
 }
