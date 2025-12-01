@@ -56,26 +56,26 @@ class UserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'name'                  => 'required|string|max:255',
-            'email'                 => 'required|string|email|max:255|unique:users',
-            'password'              => 'nullable|string|min:8|confirmed',
-            'username'              => 'nullable|string|max:255|unique:users',
-            'firstname'             => 'nullable|string|max:255',
-            'lastname'              => 'nullable|string|max:255',
-            'roles'                 => 'nullable|string',
-            'roles.*'               => 'string|exists:roles,name',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'nullable|string|min:8|confirmed',
+            'username' => 'nullable|string|max:255|unique:users',
+            'firstname' => 'nullable|string|max:255',
+            'lastname' => 'nullable|string|max:255',
+            'roles' => 'nullable|string',
+            'roles.*' => 'string|exists:roles,name',
         ]);
 
         DB::beginTransaction();
         try {
             $data = [
-                'is_active'         => false,
-                'name'              => $request->name,
-                'email'             => $request->email,
-                'username'          => $request->username,
-                'firstname'         => $request->firstname,
-                'lastname'          => $request->lastname,
-                'fullname'          => $request->firstname . ' ' . $request->lastname,
+                'is_active' => false,
+                'name' => $request->name,
+                'email' => $request->email,
+                'username' => $request->username,
+                'firstname' => $request->firstname,
+                'lastname' => $request->lastname,
+                'fullname' => $request->firstname . ' ' . $request->lastname,
             ];
 
             if ($request->filled('password')) {
@@ -85,7 +85,7 @@ class UserController extends Controller
             }
 
             $data['password'] = Hash::make($plainPassword);
-            $data['secure_password'] = encrypt($plainPassword); 
+            $data['secure_password'] = encrypt($plainPassword);
 
             $user = User::create($data);
 
@@ -173,7 +173,6 @@ class UserController extends Controller
         }
     }
 
-
     public function destroy(string $id): JsonResponse
     {
         $user = User::find($id);
@@ -199,13 +198,13 @@ class UserController extends Controller
     public function assignRole(Request $request, string $id): JsonResponse
     {
         $user = User::find($id);
-        
+
         if (!$user) {
             return $this->responseError(null, 'User not found', 404);
         }
 
         $request->validate([
-            'roles'   => 'required|string',
+            'roles' => 'required|string',
         ]);
 
         DB::beginTransaction();
@@ -227,8 +226,8 @@ class UserController extends Controller
         }
 
         $request->validate([
-            'roles'   => 'required|array',
-            'roles.*' => 'string|exists:roles,name'
+            'roles' => 'required|array',
+            'roles.*' => 'string|exists:roles,name',
         ]);
 
         DB::beginTransaction();
@@ -291,7 +290,7 @@ class UserController extends Controller
     public function getUserPassword(string $id): JsonResponse
     {
         $user = User::find($id);
-        
+
         if ($user->secure_password == null) {
             return $this->responseError(null, 'User secure password not found', 404);
         }
@@ -302,31 +301,39 @@ class UserController extends Controller
             return $this->responseError(null, 'User password not found', 404);
         }
 
-        return $this->responseSuccess([
-            'secure_password' => $user_password
-        ], 'User password fetched successfully');
+        return $this->responseSuccess(
+            [
+                'secure_password' => $user_password,
+            ],
+            'User password fetched successfully',
+        );
     }
 
     public function getStatus(Request $request): JsonResponse
     {
         $query = User::query();
 
-        if ($request->filled('status') && $request->query('status') === 'active') {
+        if ($request->query('status') === 'true') {
             $query->where('is_active', true);
         } else {
             $query->where('is_active', false);
         }
 
         if ($request->query('sum') === 'count_data') {
-            $count = (clone $query)->count();
-            return $this->responseSuccess(['count' => $count], 'Matched Visitors Counted Successfully!');
+            return $this->responseSuccess(
+                [
+                    'count' => $query->count(),
+                ],
+                'Matched Users Counted Successfully!',
+            );
         }
 
-        $data = [
-            'data' => $query->get(),
-            'status' => $request->query('status') ? 'active' : 'false'
-        ];
-
-        return $this->responseSuccess($data, 'Users retrieved successfully');
+        return $this->responseSuccess(
+            [
+                'data' => $query->get(),
+                'status' => $request->query('status') === 'active' ? 'active' : 'inactive',
+            ],
+            'Users retrieved successfully',
+        );
     }
 }
