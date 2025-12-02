@@ -925,6 +925,9 @@ class VisitorDetectionController extends Controller
     {
         $baseQuery = Visitor::query();
         $timezone = config('app.timezone', 'Asia/Jakarta');
+        $start = null;
+        $end = null;
+        $timeLabel = null;
 
         // Filter by channel
         if ($request->filled('channel') && $request->query('channel') !== 'all') {
@@ -940,6 +943,7 @@ class VisitorDetectionController extends Controller
             try {
                 $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
                 $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
+                $baseQuery->whereBetween('locale_time', [$start, $end]);
                 $timeLabel = 'custom';
             } catch (\Exception $e) {
                 return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
@@ -956,15 +960,27 @@ class VisitorDetectionController extends Controller
             switch ($request->query('time')) {
                 case 'today':
                     $baseQuery->today();
+                    $start = now($timezone)->startOfDay();
+                    $end = now($timezone)->endOfDay();
+                    $timeLabel = 'today';
                     break;
                 case 'week':
                     $baseQuery->thisWeek();
+                    $start = now($timezone)->startOfWeek();
+                    $end = now($timezone)->endOfWeek();
+                    $timeLabel = 'week';
                     break;
                 case 'month':
                     $baseQuery->thisMonth();
+                    $start = now($timezone)->startOfMonth();
+                    $end = now($timezone)->endOfMonth();
+                    $timeLabel = 'month';
                     break;
                 case 'year':
                     $baseQuery->thisYear();
+                    $start = now($timezone)->startOfYear();
+                    $end = now($timezone)->endOfYear();
+                    $timeLabel = 'year';
                     break;
             }
         }
@@ -981,9 +997,9 @@ class VisitorDetectionController extends Controller
             'matched' => $matched,
             'reverted' => $reverted,
             'filter_info' => [
-                'time_range' => $timeLabel,
-                'start_date' => $start->toDateTimeString(),
-                'end_date' => $end->toDateTimeString(),
+                'time_range' => $timeLabel ?? 'all',
+                'start_date' => $start ? $start->toDateTimeString() : 'all',
+                'end_date' => $end ? $end->toDateTimeString() : 'now',
             ],
         ];
 
