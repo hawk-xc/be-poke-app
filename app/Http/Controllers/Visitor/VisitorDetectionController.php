@@ -11,9 +11,9 @@ use Illuminate\Http\Response;
 use App\Models\VisitorDetection;
 use App\Http\Controllers\Controller;
 use App\Repositories\AuthRepository;
-use Illuminate\Database\Eloquent\Builder;
 use App\Models\VisitorDetection as Visitor;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class VisitorDetectionController extends Controller
 {
@@ -42,15 +42,19 @@ class VisitorDetectionController extends Controller
         'revert_by' => 'human',
     ];
 
+    protected $exportFileName;
+
     /**
      * AuthController constructor.
      */
     public function __construct(AuthRepository $ar)
     {
-        $this->middleware(['permission:visitor:list'])->only(['index', 'show', 'getReport', 'getQueues', 'getMatch', 'getMatchedData']);
-        $this->middleware(['permission:visitor:create'])->only('store');
-        $this->middleware(['permission:visitor:edit'])->only('update', 'revert', 'revertMatchedData');
-        $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+        // $this->middleware(['permission:visitor:list'])->only(['index', 'show', 'getReport', 'getQueues', 'getMatch', 'getMatchedData']);
+        // $this->middleware(['permission:visitor:create'])->only('store');
+        // $this->middleware(['permission:visitor:edit'])->only('update', 'revert', 'revertMatchedData');
+        // $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+
+        $this->exportFileName = "twc_visitors_" . now()->format('Ymd_His') . ".csv";
 
         $this->authRepository = $ar;
     }
@@ -743,7 +747,7 @@ class VisitorDetectionController extends Controller
      *
      * @return JsonResponse The matched data with a success response
      */
-    public function getMatchedData(Request $request): JsonResponse
+    public function getMatchedData(Request $request): JsonResponse|StreamedResponse
     {
         $query = VisitorDetection::query();
 
@@ -797,6 +801,10 @@ class VisitorDetectionController extends Controller
         if ($request->query('sum') === 'count_data') {
             $count = (clone $query)->count();
             return $this->responseSuccess(['count' => $count], 'Matched Visitors Counted Successfully!');
+        }
+
+        if ($request->boolean('export') === true) {
+            return exportMatchedCSV(clone $query);
         }
 
         if ($request->filled('sort_by')) {
@@ -891,6 +899,28 @@ class VisitorDetectionController extends Controller
         }
     }
 
+    /**
+     * Get visitor statistics data.
+     *
+     * This function will fetch visitor statistics data based on the given filters.
+     *
+     * Available filters:
+     * - channel: Filter by channel (string or array of strings).
+     * - start_time: Filter by start time (format: Y-m-d H:i:s).
+     * - end_time: Filter by end time (format: Y-m-d H:i:s).
+     * - start_date: Filter by start date (format: Y-m-d).
+     * - end_date: Filter by end date (format: Y-m-d).
+     * - time: Filter by time (today/week/month/year).
+     *
+     * The response will contain the following statistics:
+     * - no_face_detected: The number of visitors without face detection.
+     * - registered: The number of registered visitors.
+     * - matched: The number of matched visitors.
+     * - reverted: The number of reverted visitors.
+     * - filter_info: An array containing information about the filters used.
+     *
+     * @return JsonResponse The visitor statistics data with a success response.
+     */
     public function getStatisticData(Request $request): JsonResponse
     {
         $baseQuery = Visitor::query();

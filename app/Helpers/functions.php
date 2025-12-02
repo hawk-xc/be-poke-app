@@ -337,3 +337,69 @@ if (!function_exists('sendTelegram')) {
         return json_decode($result, true);
     }
 }
+
+if (!function_exists('exportMatchedCSV')) {
+    function exportMatchedCSV($query)
+    {
+        $filename = "twc_visitors_" . now()->format('Ymd_His') . ".csv";
+
+        $headers = [
+            "Content-Type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$filename",
+        ];
+
+        $callback = function () use ($query) {
+
+            $file = fopen('php://output', 'w');
+
+            fputcsv($file, [
+                'IN ID',
+                'OUT ID',
+                'GATE IN',
+                'GATE OUT',
+                'TIME IN',
+                'TIME OUT',
+                'EMOTION',
+                'SEX'
+            ]);
+
+            $query->orderBy('id')->chunk(500, function ($rows) use ($file) {
+                foreach ($rows as $out) {
+
+                    $ins = $out->visitorIn()->orderBy('locale_time', 'desc')->get();
+
+                    if ($ins->isEmpty()) {
+                        fputcsv($file, [
+                            null,
+                            $out->id,
+                            null,
+                            $out->gate_name,
+                            null,
+                            $out->locale_time,
+                            $out->emotion,
+                            $out->face_sex,
+                        ]);
+                        continue;
+                    }
+
+                    foreach ($ins as $in) {
+                        fputcsv($file, [
+                            $in->id,
+                            $out->id,
+                            $in->gate_name,
+                            $out->gate_name,
+                            $in->locale_time,
+                            $out->locale_time,
+                            $out->emotion,
+                            $out->face_sex,
+                        ]);
+                    }
+                }
+            });
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+}
