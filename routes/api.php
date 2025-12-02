@@ -63,17 +63,22 @@ Route::group(
         });
 
         // Visitor API
-        Route::group(['prefix' => 'visitors'], function () {
+        Route::group(['prefix' => 'visitors'], function () { {
+            }
             Route::apiResource('', VisitorDetectionController::class)->parameters(['' => 'visitors']);
             Route::post('{id}/restore', [VisitorDetectionController::class, 'restore'])->name('visitors.restore');
             Route::get('{id}/get-match', [VisitorDetectionController::class, 'getMatch'])->name('visitors.get-match');
             Route::post('{id}/revert', [VisitorDetectionController::class, 'revert'])->name('visitors.revert');
             Route::post('{id}/revert-matched', [VisitorDetectionController::class, 'revertMatchedData'])->name('visitors.revert-matched');
             Route::delete('{id}/force-delete', [VisitorDetectionController::class, 'forceDelete'])->name('visitors.force-delete');
-            Route::get('action/get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
-            Route::get('action/get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
-            Route::get('action/get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
-            Route::get('action/get-statistic', [VisitorDetectionController::class, 'getStatisticData'])->name('visitors.get-statistic-data');
+            // action route
+            Route::group(['prefix' => 'action'], function () {
+                Route::get('get-report', [VisitorDetectionController::class, 'getReport'])->name('visitors.get-report');
+                Route::get('get-queues', [VisitorDetectionController::class, 'getQueues'])->name('visitors.get-queues');
+                Route::get('get-match-data', [VisitorDetectionController::class, 'getMatchedData'])->name('visitors.get-match-data');
+                Route::get('get-statistic', [VisitorDetectionController::class, 'getStatisticData'])->name('visitors.get-statistic-data');
+                Route::delete('delete-bulk', [VisitorDetectionController::class, 'deleteBulk'])->name('visitors.delete-bulk');
+            });
         });
 
         // Sidebar menu
