@@ -6,6 +6,7 @@ use Exception;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use App\Models\VisitorDetection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class SendGateInData extends Command
@@ -100,6 +101,7 @@ class SendGateInData extends Command
 
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Detect Failed");
+                    Log::error('error in face detect: ' . $body);
                     $this->sendFaceFailedCounter++;
                     continue;
                 }

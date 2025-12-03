@@ -296,12 +296,11 @@ class DahuaFaceDetectionChannel extends Command
                             $status = $res->getStatusCode();
                             if ($status === 200 && file_exists($savePath)) {
                                 $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
-                                Log::info("Download sukses: {$savePath}");
                             } else {
-                                Log::error("Download gagal: HTTP {$status}, val={$val}");
+                                sendTelegram("Visitor Image Failure Download : HTTP {$status}, val={$val}");
                             }
                         } catch (\Exception $e) {
-                            Log::error("Gagal unduh FaceDetection {$val}: " . $e->getMessage());
+                            sendTelegram("switch error : Visitor Image Failure Download : " . $e->getMessage());
                         }
                         break;
 

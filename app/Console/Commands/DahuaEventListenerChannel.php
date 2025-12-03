@@ -54,7 +54,6 @@ class DahuaEventListenerChannel extends Command
                     $event = trim($data);
 
                     if (!empty($event)) {
-                        Log::info($event);
                         try {
                             FetchDahuaDataChannel::dispatch(1, 'in', 'Gate-In-A');
                             FetchDahuaDataChannel::dispatch(2, 'in', 'Gate-In-B');
@@ -67,7 +66,7 @@ class DahuaEventListenerChannel extends Command
 
                             echo "Fetch command executed at " . now() . "\n";
                         } catch (\Exception $e) {
-                            Log::error("Job dispatch error: " . $e->getMessage());
+                            sendTelegram("❌ Error di job FetchDahuaDataChannel: " . $e->getMessage());
                         }
                     }
 
