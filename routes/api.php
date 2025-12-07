@@ -1,8 +1,11 @@
 <?php
 
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
+use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Role\RoleController;
 use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Visitor\VisitorDetectionController;
@@ -83,5 +86,33 @@ Route::group(
 
         // Sidebar menu
         Route::get('get-sidebar-menu', [DashboardController::class, 'sidebar'])->name('dashboard.get-sidebar');
+
+        Route::post('upload-content', function(Request $request) {
+            $request->validate([
+                'name' => 'required|string',
+                'content' => 'required|file|max:2048'
+            ]);
+
+            $file = $request->file('content');
+            $fileExtension = $file->getClientOriginalExtension();
+
+            $fileName = time() . Str::slug($request->name) . '.' . $fileExtension;
+
+            try {
+                $fileMove = Storage::disk('minio')->putFileAs('content', $file, $fileName);
+                $fileUrl = Storage::disk('minio')->url($fileMove);
+
+                return json_encode([
+                    'status' => true,
+                    'message' => 'file successfully uploaded!',
+                    'file_url' => $fileUrl
+                ]);
+            } catch (Exception $err) {
+                return json_encode([
+                    'status' => false,
+                    'message' => 'Err uploaded file : ' . $err->getMessage()
+                ]);
+            }
+        });
     },
 );

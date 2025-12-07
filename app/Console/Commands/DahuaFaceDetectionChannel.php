@@ -93,9 +93,6 @@ class DahuaFaceDetectionChannel extends Command
                     'condition.Flags[0]' => 'Event',
                     'condition.Events[0]' => 'FaceDetection',
                     'condition.DB.FaceDetectionRecordFilter.ImageType' => 'GlobalSence'
-                    // 'condition.DB.FaceRecognitionRecordFilter.StartTime' => $start_time,
-                    // 'condition.DB.FaceRecognitionRecordFilter.EndTime' => $end_time,
-                    // 'condition.DB.FaceRecognitionRecordFilter.RegType' => 'RecSuccess',
                 ],
             ]);
 
@@ -124,7 +121,6 @@ class DahuaFaceDetectionChannel extends Command
                 ]);
 
                 $raw = (string) $resMediaFile->getBody();
-                Storage::put('dahua_keepalive.log', "=== PAGE {$page} ===\n" . $raw);
 
                 $parsed = $this->parseMediaFileResponse($raw);
 
