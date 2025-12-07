@@ -12,9 +12,13 @@ use App\Models\VisitorDetection;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Repositories\AuthRepository;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\MatchedVisitorsExport;
+use Maatwebsite\Excel\Excel as ExcelExcel;
 use App\Models\VisitorDetection as Visitor;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class VisitorDetectionController extends Controller
 {
@@ -182,7 +186,7 @@ class VisitorDetectionController extends Controller
             // $end = Carbon::parse($request->query('end_time'))->setTime(23, 59, 0);
 
             $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
-                $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
+            $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
 
             $baseQuery->whereBetween('locale_time', [$start, $end]);
         }
@@ -867,7 +871,7 @@ class VisitorDetectionController extends Controller
     //     );
     // }
 
-    public function getMatchedData(Request $request): JsonResponse|StreamedResponse
+    public function getMatchedData(Request $request): JsonResponse|BinaryFileResponse
     {
         $query = VisitorDetection::query();
 
@@ -924,8 +928,14 @@ class VisitorDetectionController extends Controller
         }
 
         if ($request->boolean('export') === true) {
-            return exportMatchedCSV(clone $query);
+            $filename = "twc_visitors_" . now()->format('Ymd_His') . ".xlsx";
+
+            return Excel::download(
+                new MatchedVisitorsExport(clone $query),
+                $filename
+            );
         }
+
 
         if ($request->filled('sort_by')) {
             $sortDir = $request->query('sort_dir', 'asc');
