@@ -7,10 +7,10 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class MatchedVisitorsExport implements 
-    FromQuery, 
-    WithHeadings, 
-    WithMapping, 
+class MatchedVisitorsExport implements
+    FromQuery,
+    WithHeadings,
+    WithMapping,
     WithChunkReading
 {
     protected $query;
@@ -22,7 +22,9 @@ class MatchedVisitorsExport implements
 
     public function query()
     {
-        return $this->query->with('visitorIn');
+        return $this->query->with(['visitorIn' => function ($q) {
+            $q->orderBy('locale_time', 'desc');
+        }]);
     }
 
     public function headings(): array
@@ -41,29 +43,14 @@ class MatchedVisitorsExport implements
 
     public function map($out): array
     {
-        $in = $out->visitorIn()
-            ->orderBy('locale_time', 'desc')
-            ->first();
-
-        if (!$in) {
-            return [
-                null,
-                $out->id,
-                null,
-                $out->gate_name,
-                null,
-                $out->locale_time,
-                $out->emotion,
-                $out->face_sex,
-            ];
-        }
+        $in = $out->visitorIn->first();
 
         return [
-            $in->id,
+            $in?->id,
             $out->id,
-            $in->gate_name,
+            $in?->gate_name,
             $out->gate_name,
-            $in->locale_time,
+            $in?->locale_time,
             $out->locale_time,
             $out->emotion,
             $out->face_sex,
@@ -72,6 +59,6 @@ class MatchedVisitorsExport implements
 
     public function chunkSize(): int
     {
-        return 500;
+        return 1000;
     }
 }
