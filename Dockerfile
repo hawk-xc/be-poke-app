@@ -26,13 +26,21 @@ WORKDIR /var/www
 # ⚡️ Layering: cache composer lebih efisien
 # ----------------------------
 COPY composer.json composer.lock* ./
-RUN composer install --no-interaction --prefer-dist --no-scripts || true
+RUN composer install --no-interaction --prefer-dist --no-scripts --no-dev || true
 
 # ----------------------------
-# 📦 Copy project
-# (akan ketimpa bind mount saat runtime utk live sync)
+# 📦 Copy minimal files for production
+# (di dev mode akan di-override oleh volume mount)
 # ----------------------------
-COPY . .
+COPY artisan ./
+COPY app ./app
+COPY bootstrap ./bootstrap
+COPY config ./config
+COPY database ./database
+COPY public ./public
+COPY resources ./resources
+COPY routes ./routes
+COPY server.php ./
 
 # ----------------------------
 # 🔐 Permissions (storage & cache)
