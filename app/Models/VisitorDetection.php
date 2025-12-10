@@ -19,19 +19,16 @@ class VisitorDetection extends Model
         'is_registered',
         'rec_no_in',
         'is_matched',
-        'face_token',
+        'is_duplicate',
 
         // Basic detection data
-        'faceset_token',
         'action',
-        'class',
         'event_type',
         'name',
         'is_global_scene',
         'locale_time',
         'utc',
         'real_utc',
-        'sequence',
 
         // Face Data (FaceDetection)
         'face_age',
@@ -52,11 +49,8 @@ class VisitorDetection extends Model
         'object_bounding_box',
         'object_age',
         'object_sex',
-        'frame_sequence',
-        'emotion',
 
         // Passerby
-        'passerby_group_id',
         'passerby_uid',
 
         // Data FaceRecognition (Candidates)
@@ -78,8 +72,6 @@ class VisitorDetection extends Model
         'rec_no',
         'channel',
         'status',
-        'embedding_id',
-        'duration',
 
         // revert_by
         'revert_by'
