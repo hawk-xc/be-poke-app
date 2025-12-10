@@ -95,10 +95,6 @@ class SendGateInData extends Command
                 $status = $detect_response['status'];
                 $body   = $detect_response['body'];
 
-                // $this->info("DETECT RESPONSE ({$detection->id}): HTTP {$status}");
-
-                Storage::put("face_detect_log_{$detection->id}.log", "HTTP {$status}\n{$body}");
-
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Detect Failed");
                     Log::error('error in face detect: ' . $body);
