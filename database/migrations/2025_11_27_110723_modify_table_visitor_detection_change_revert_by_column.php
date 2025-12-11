@@ -9,20 +9,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
-            $table->enum('revert_by', ['human', 'system'])
-                ->nullable()
-                ->default(null)
-                ->change();
+            $table->string('revert_by')->nullable()->default(null)->change();
         });
     }
 
     public function down(): void
     {
         Schema::table('visitor_detections', function (Blueprint $table) {
-            $table->enum('revert_by', ['human', 'system'])
-                ->default('human')
-                ->nullable(false)
-                ->change();
+            $table->string('revert_by')->default('human')->nullable(false)->change();
         });
     }
 };

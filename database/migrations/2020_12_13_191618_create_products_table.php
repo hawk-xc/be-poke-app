@@ -19,7 +19,7 @@ class CreateProductsTable extends Migration
             $table->text('description')->nullable();
             $table->float('price')->default(0);
             $table->string('image')->nullable();
-            $table->unsignedBigInteger('user_id')->comment('Created By User');
+            $table->bigInteger('user_id')->comment('Created By User');
 
             $table->foreign('user_id')->references('id')->on('users');
             $table->timestamps();

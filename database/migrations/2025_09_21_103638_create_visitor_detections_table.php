@@ -49,7 +49,7 @@ return new class extends Migration
             $table->string('passerby_uid')->nullable();
 
             // Data FaceRecognition (Candidates) opsional
-            $table->unsignedBigInteger('person_id')->nullable();
+            $table->bigInteger('person_id')->nullable();
             $table->string('person_uid')->nullable();
             $table->string('person_name')->nullable();
             $table->string('person_sex')->nullable();

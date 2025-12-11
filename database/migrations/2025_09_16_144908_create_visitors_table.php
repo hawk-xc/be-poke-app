@@ -27,7 +27,7 @@ return new class extends Migration
             $table->integer('secondary_analyse_type')->nullable();
 
             // Person Info
-            $table->unsignedBigInteger('person_uid')->nullable();   // Person.UID
+            $table->bigInteger('person_uid')->nullable();   // Person.UID
             $table->string('person_group')->nullable();             // GroupName
             $table->integer('similarity')->nullable();              // Similarity %
             $table->string('person_image')->nullable();             // Person.Image[0].FilePath
