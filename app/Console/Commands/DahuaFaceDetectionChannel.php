@@ -27,6 +27,7 @@ class DahuaFaceDetectionChannel extends Command
     protected $description = 'Fetch Facedetection data dari Dahua';
 
     protected int $channel;
+    protected int $gateOutChannel = 7;  
     protected string|null $gateName;
 
     public function __construct()
@@ -246,11 +247,7 @@ class DahuaFaceDetectionChannel extends Command
                     case 'FilePath':
                         try {
                             $fileName = basename($val);
-                            $savePath = storage_path('app/public/faceDetection_folder/' . $fileName);
-
-                            if (!file_exists(dirname($savePath))) {
-                                mkdir(dirname($savePath), 0775, true);
-                            }
+                            $minioPath = 'face-detection/' . ($this->gateOutChannel === $this->channel ? 'out' : 'in') . '/' . date('Y/m/d') . '/' . $fileName;
 
                             $jar = new \GuzzleHttp\Cookie\CookieJar();
 
@@ -274,24 +271,27 @@ class DahuaFaceDetectionChannel extends Command
 
                             $url = '/cgi-bin/RPC_Loadfile/' . ltrim($val, '/');
 
-                            // 1) dummy request → trigger digest challenge
                             try {
                                 $client->get($url, ['http_errors' => false]);
                             } catch (\Exception $e) {
                                 Log::warning("Dummy request error (ignored): " . $e->getMessage());
                             }
 
-                            // 2) real request with digest auth
                             $res = $client->get($url, [
                                 'auth' => [$username, $password, 'digest'],
-                                'sink' => $savePath,
                                 'http_errors' => false,
                                 'allow_redirects' => false,
                             ]);
 
                             $status = $res->getStatusCode();
-                            if ($status === 200 && file_exists($savePath)) {
-                                $result['items'][$idx]['person_pic_url'] = '/storage/faceDetection_folder/' . $fileName;
+                            if ($status === 200) {
+                                $imageContent = $res->getBody()->getContents();
+
+                                Storage::disk('minio')->put($minioPath, $imageContent);
+
+                                $result['items'][$idx]['person_pic_url'] = $minioPath;
+
+                                $this->info("File saved to Minio: {$minioPath}");
                             } else {
                                 sendTelegram("Visitor Image Failure Download : HTTP {$status}, val={$val}");
                             }
@@ -339,7 +339,7 @@ class DahuaFaceDetectionChannel extends Command
                 'name' => null,
                 'is_global_scene' => 0,
                 'locale_time' => null,
-                'label' => $this->channel === 7 ? 'out' : 'in',
+                'label' => ($this->gateOutChannel === $this->channel ? 'out' : 'in'),
                 'utc' => null,
                 'real_utc' => null,
                 'face_age' => null,

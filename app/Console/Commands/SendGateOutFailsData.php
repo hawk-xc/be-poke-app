@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Carbon\Carbon;
 use Exception;
-use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use App\Models\VisitorDetection;
 use App\Models\VisitorDetectionFails;
@@ -25,16 +24,12 @@ class SendGateOutFailsData extends Command
      *
      * @var string
      */
-    protected $description = 'Resend failed gate-out visitor detections to Face++ for records with less than 3 retries.';
+    protected $description = 'Resend failed gate-out visitor detections to Custom ML API for records with less than 3 retries.';
 
-    protected string $apikey;
-    protected string $apisecret;
-    protected string $faceset_token;
-    protected string $faceplus_delete_face_token;
-    protected string $faceplus_search_url;
+    protected string $api_exit_url;
     protected int $matchedDataCounter;
     protected int $toleranceMaxStayMin = 40; // minutes
-    protected int $acuracy = 85; // percentage
+    protected int $accuracy = 60; // percentage
     protected int $sleepTime = 1;
     protected int $retryCount = 3;
     protected int $successfullyResent;
@@ -44,16 +39,11 @@ class SendGateOutFailsData extends Command
     {
         parent::__construct();
 
-        $baseUrl = rtrim(env('FACEPLUSPLUS_URL'), '/');
-
-        $this->faceplus_search_url          = $baseUrl . '/search';
-        $this->faceplus_delete_face_token   = $baseUrl . '/faceset/removeface';
-        $this->apikey                       = env('FACEPLUSPLUS_API_KEY');
-        $this->apisecret                    = env('FACEPLUSPLUS_SECRET_KEY');
-        $this->faceset_token                = env('FACEPLUSPLUS_FACESET_TOKEN');
-        $this->matchedDataCounter           = 0;
-        $this->successfullyResent           = 0;
-        $this->failedAgain                  = 0;
+        $baseUrl = rtrim(env('INSIGHTFACE_API_URL', 'https://insightface.deraly.id'), '/');
+        $this->api_exit_url = $baseUrl . '/exit';
+        $this->matchedDataCounter = 0;
+        $this->successfullyResent = 0;
+        $this->failedAgain = 0;
     }
 
     /**
@@ -102,15 +92,12 @@ class SendGateOutFailsData extends Command
                 }
 
                 // ======================================================
-                // 1. REQUEST SEARCH (FACE++ SEARCH API)
+                // 1. REQUEST EXIT (CUSTOM ML EXIT API)
                 // ======================================================
-                $detect_response = curlMultipart(
-                    $this->faceplus_search_url,
+                $exit_response = curlMultipart(
+                    $this->api_exit_url,
                     [
-                        'api_key'           => $this->apikey,
-                        'api_secret'        => $this->apisecret,
-                        'faceset_token'     => $this->faceset_token,
-                        'image_file'        => new \CURLFile(
+                        'image' => new \CURLFile(
                             $absolutePath,
                             mime_content_type($absolutePath),
                             basename($absolutePath)
@@ -118,8 +105,8 @@ class SendGateOutFailsData extends Command
                     ]
                 );
 
-                $status = $detect_response['status'];
-                $body   = $detect_response['body'];
+                $status = $exit_response['status'];
+                $body   = $exit_response['body'];
 
                 $this->info($body);
 
@@ -129,11 +116,13 @@ class SendGateOutFailsData extends Command
                     continue; // Keep the record in fails table with incremented try_count
                 }
 
-                $search_data = json_decode($body, true);
-                $detection->face_token = $search_data['faces'][0]['face_token'] ?? null;
+                $exit_data = json_decode($body, true);
 
-                if (!isset($search_data['results']) || empty($search_data['results'])) {
-                    $this->info("Detection {$detection->id} - No match found on resend.");
+                // ======================================================
+                // Check Response Success
+                // ======================================================
+                if (empty($exit_data['success']) || !$exit_data['success']) {
+                    $this->info("Detection {$detection->id} - Exit API failed on resend");
                     $detection->is_matched = false;
                     $detection->is_registered = true;
                     $detection->save();
@@ -144,61 +133,86 @@ class SendGateOutFailsData extends Command
                     continue;
                 }
 
-                $best_match = $search_data['results'][0];
-                $threshold  = $search_data['thresholds']['1e-5'] ?? 75;
-                $thresholdValue = max($this->acuracy, $threshold);
-
-                if ($best_match['confidence'] < $thresholdValue) {
+                // ======================================================
+                // When No Match Found (person_entry_id is null)
+                // ======================================================
+                if (empty($exit_data['person_entry_id'])) {
+                    $this->info("Detection {$detection->id} - No match found on resend.");
+                    $detection->is_matched = false;
+                    $detection->is_registered = true;
                     $detection->save();
-                    $failed_detection->delete(); // Processed, so remove from fails
+                    
+                    // Successfully processed (no match), remove from fails table
+                    $failed_detection->delete();
                     $this->successfullyResent++;
                     continue;
                 }
 
                 // ======================================================
-                // MATCH VALID
+                // Check Confidence Threshold
                 // ======================================================
-                $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'face_token'])
+                $confidence = ($exit_data['confidence'] ?? 0) * 100; // Convert to percentage
+
+                if ($confidence < $this->accuracy) {
+                    $this->info("Detection {$detection->id} - Confidence too low on resend: {$confidence}%");
+                    $detection->is_matched = false;
+                    $detection->is_registered = true;
+                    $detection->save();
+                    
+                    // Successfully processed (low confidence), remove from fails table
+                    $failed_detection->delete();
+                    $this->successfullyResent++;
+                    continue;
+                }
+
+                // ======================================================
+                // Find Matching IN Record
+                // ======================================================
+                $matched_entry_id = $exit_data['person_entry_id'];
+                
+                $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'person_uid'])
                     ->where('label', 'in')
-                    ->where('face_token', $best_match['face_token'])
+                    ->where('person_uid', $matched_entry_id)
                     ->where('locale_time', '<', Carbon::parse($detection->locale_time)->subMinutes($this->toleranceMaxStayMin))
                     ->first();
 
                 if (!$visitor_in) {
-                    $this->info("No matching 'IN' record found on resend.");
+                    $this->info("Detection {$detection->id} - No matching 'IN' record found on resend for entry: {$matched_entry_id}");
+                    $detection->is_matched = false;
+                    $detection->is_registered = true;
                     $detection->save();
-                    $failed_detection->delete(); // Processed, so remove from fails
+                    
+                    // Successfully processed, remove from fails table
+                    $failed_detection->delete();
                     $this->successfullyResent++;
                     continue;
                 }
 
-                $minutes = Carbon::parse($visitor_in->locale_time)
+                // ======================================================
+                // MATCH VALID - Calculate Duration
+                // ======================================================
+                $minutes = $exit_data['duration_minutes'] ?? Carbon::parse($visitor_in->locale_time)
                     ->diffInMinutes(Carbon::parse($detection->locale_time));
 
-                $detection->is_matched      = true;
-                $detection->embedding_id    = $search_data['image_id'] ?? null;
-                $detection->rec_no_in       = $visitor_in->rec_no;
-                $detection->duration        = $minutes;
-                $detection->similarity      = $best_match['confidence'];
-                $detection->status          = true;
-                $detection->is_registered   = true;
-
-                $facetokens = $search_data['faces'][0]['face_token'] . ',' . $visitor_in->face_token;
-
-                $this->info("Detection {$detection->id} MATCHED on resend with confidence {$best_match['confidence']}");
-                $this->matchedDataCounter++;
-
-                curlMultipart(
-                    $this->faceplus_delete_face_token,
-                    [
-                        'api_key'           => $this->apikey,
-                        'api_secret'        => $this->apisecret,
-                        'faceset_token'     => $this->faceset_token,
-                        'face_tokens'       => $facetokens
-                    ]
-                );
+                // ======================================================
+                // Save Matching Results
+                // ======================================================
+                $detection->is_matched          = true;
+                $detection->rec_no_in           = $visitor_in->rec_no;
+                $detection->duration            = $minutes;
+                $detection->similarity          = $confidence;
+                $detection->status              = true;
+                $detection->is_registered       = true;
+                
+                // Mapping from exit response
+                $detection->person_uid          = $exit_data['person_exit_id'] ?? null;
+                $detection->face_sex            = $exit_data['gender'] ?? null;
+                $detection->face_age            = $exit_data['age'] ?? null;
 
                 $detection->save();
+
+                $this->info("Detection {$detection->id} MATCHED on resend with IN record {$visitor_in->rec_no} (Confidence: {$confidence}%, Duration: {$minutes} min)");
+                $this->matchedDataCounter++;
 
                 // On full success, delete from fails table
                 $failed_detection->delete();
@@ -207,11 +221,15 @@ class SendGateOutFailsData extends Command
 
             } catch (Exception $err) {
                 $this->failedAgain++;
-                sendTelegram('🔴 [ResendFailedGateOut] Resend Errno : ' . $err->getMessage());
+                Log::error("ResendFailedGateOut Error on Detection {$detection->id}: " . $err->getMessage());
+                sendTelegram('🔴 [ResendFailedGateOut] Resend Error: ' . $err->getMessage());
                 $this->error("Error on resending detection {$detection->id}: " . $err->getMessage());
             }
         }
 
+        // ============================
+        // TELEGRAM SUMMARY REPORT
+        // ============================
         $summary = "
 🔵 <b>[ResendFailedGateOut] Summary Report</b>
 
@@ -222,11 +240,17 @@ class SendGateOutFailsData extends Command
 • 🔗 Matched on Resend   : <b>{$this->matchedDataCounter}</b>
 • ❌ Failed Again        : <b>{$this->failedAgain}</b>
 
-<b>⚙️ Notes:</b>
-• Records that reached the retry limit ({$this->retryCount}) were automatically deleted.
+<b>⚙️ Custom ML Parameters:</b>
+• Confidence Threshold : <b>{$this->accuracy}%</b>
+• Max Retry Count      : <b>{$this->retryCount}</b>
+• API Endpoint         : <code>{$this->api_exit_url}</code>
+
+<b>📘 Notes:</b>
+• Records that reached the retry limit ({$this->retryCount}) were skipped.
 • On success, records are removed from the failure log.
 • On failure, `try_count` is incremented.
-            ";
+• Successfully processed records (even without match) are removed from fails table.
+        ";
 
         $this->info('=== [ResendFailedGateOutData] Finished ===');
         sendTelegram($summary);
