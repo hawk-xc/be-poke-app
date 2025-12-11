@@ -293,6 +293,7 @@ class DahuaFaceDetectionChannel extends Command
 
                                 $this->info("File saved to Minio: {$minioPath}");
                             } else {
+                                Log::error('DOWNLOAD person_pic_url WITH : ' . $status . $val);
                                 sendTelegram("Visitor Image Failure Download : HTTP {$status}, val={$val}");
                             }
                         } catch (\Exception $e) {
