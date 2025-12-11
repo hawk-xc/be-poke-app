@@ -1,0 +1,33 @@
+# Ignore development files
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Ignore dependencies (will be installed in container)
+vendor/
+node_modules/
+
+# Ignore storage and cache
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*
+!storage/logs/.gitkeep
+!storage/framework/cache/.gitkeep
+!storage/framework/sessions/.gitkeep
+!storage/framework/views/.gitkeep
+!bootstrap/cache/.gitkeep
+
+# Ignore test and docs
+tests/
+phpunit.xml
+README.md
+docker-compose.yml.back
+Dockerfile.back
+
+# Ignore OS files
+.DS_Store
+Thumbs.db

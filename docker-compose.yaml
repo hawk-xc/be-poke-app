@@ -12,7 +12,9 @@ services:
   # 🧩 Laravel Backend (Main API)
   # =====================================
   backend:
-    build: .
+    build:
+      context: .
+      target: base  # bisa ditambahkan multi-stage nanti
     container_name: twb-be-app
     restart: always
     working_dir: /var/www
@@ -26,6 +28,8 @@ services:
       DB_HOST: ${DB_HOST:-db}     # host DB (service name di compose lain)
       DB_PORT: ${DB_PORT:-3306}
     volumes: *code_sync
+    depends_on:
+      - db
     command: >
       sh -c "
         echo '🚀 Starting TWB Backend...' &&
@@ -50,7 +54,9 @@ services:
   # ⚙️ Laravel Queue Worker
   # =====================================
   worker:
-    build: .
+    build:
+      context: .
+      target: base
     container_name: twb-be-worker
     restart: always
     working_dir: /var/www
@@ -60,6 +66,9 @@ services:
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-3306}
     volumes: *code_sync
+    depends_on:
+      - db
+      - backend
     command: >
       sh -c "
         echo '⚙️ Starting Laravel Queue Worker...' &&
