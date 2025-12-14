@@ -51,12 +51,12 @@ class SendGateInData extends Command
                 $paths = normalizeFaceImagePath($imageUrl);
 
                 $storagePath  = $paths['storage'];
-                $absolutePath = $paths['absolute'];
+                // $absolutePath = $paths['absolute'];
 
                 // ============================
                 // FILE CHECK BLOCK
                 // ============================
-                if (!Storage::exists($storagePath)) {
+                if (!Storage::disk('minio')->exists($storagePath)) {
                     $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
                     continue;
                 }
@@ -64,16 +64,25 @@ class SendGateInData extends Command
                 // ============================
                 // SEND TO CUSTOM ML API BLOCK
                 // ============================
+                $tempFile = tempnam(sys_get_temp_dir(), 'face_');
+
+                file_put_contents(
+                    $tempFile,
+                    Storage::disk('minio')->get($storagePath)
+                );
+
                 $response = curlMultipart(
                     $this->api_url,
                     [
                         'image' => new \CURLFile(
-                            $absolutePath,
-                            mime_content_type($absolutePath),
-                            basename($absolutePath)
+                            $tempFile,
+                            mime_content_type($tempFile),
+                            basename($storagePath)
                         ),
                     ]
                 );
+
+                @unlink($tempFile);
 
                 $status = $response['status'];
                 $body   = $response['body'];
@@ -112,9 +121,8 @@ class SendGateInData extends Command
                 $detection->save();
 
                 $this->sendFaceSuccessCounter++;
-                $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY" . 
+                $this->info("Detection {$detection->id} REGISTERED SUCCESSFULLY" .
                     ($detection->is_duplicate ? " (DUPLICATE)" : ""));
-
             } catch (Exception $err) {
                 $detection->is_registered = 0;
                 $detection->save();

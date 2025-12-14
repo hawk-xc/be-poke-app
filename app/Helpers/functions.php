@@ -208,27 +208,41 @@ if (!function_exists('downloadMedia')) {
     }
 }
 
-if (!function_exists('normalizeFaceImagePath')) {
-    function normalizeFaceImagePath($urlOrPath)
-    {
-        $clean = parse_url($urlOrPath, PHP_URL_PATH);
+// if (!function_exists('normalizeFaceImagePath')) {
+//     function normalizeFaceImagePath($urlOrPath)
+//     {
+//         $clean = parse_url($urlOrPath, PHP_URL_PATH);
 
-        $pos = strpos($clean, 'faceDetection_folder');
+//         $pos = strpos($clean, 'faceDetection_folder');
 
-        if ($pos === false) {
-            throw new Exception("Invalid face image path: {$urlOrPath}");
-        }
+//         if ($pos === false) {
+//             throw new Exception("Invalid face image path: {$urlOrPath}");
+//         }
 
-        $relative = substr($clean, $pos);
+//         $relative = substr($clean, $pos);
 
-        $relative = ltrim($relative, '/');
+//         $relative = ltrim($relative, '/');
 
-        return [
-            'storage'  => "public/{$relative}",
-            'absolute' => storage_path("app/public/{$relative}"),
-        ];
+//         return [
+//             'storage'  => "public/{$relative}",
+//             'absolute' => storage_path("app/public/{$relative}"),
+//         ];
+//     }
+// }
+
+function normalizeFaceImagePath(string $path): array
+{
+    $path = ltrim($path, '/');
+
+    if (!str_starts_with($path, 'face-detection/')) {
+        throw new Exception("Invalid face image path: {$path}");
     }
+
+    return [
+        'storage' => $path, // ONLY THIS
+    ];
 }
+
 
 /**
  * Curl Multipart (upload file)
