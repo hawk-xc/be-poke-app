@@ -104,30 +104,19 @@ class DashboardController extends Controller
             $lengthOfVisit = $lengthOfVisit ? round($lengthOfVisit, 2) : 0;
 
             // PEAK HOURS (07.00 - 17.59)
-            $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
-                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
-                ->where('label', 'out')
-                ->groupBy('hour')
+            $busyHours = VisitorDetection::where('label', 'out')
+                ->whereBetween('locale_time', [
+                    $start->copy()->setTime(7, 0),
+                    $end->copy()->setTime(17, 59, 59),
+                ])
+                ->selectRaw("
+        EXTRACT(HOUR FROM locale_time::timestamp) as hour,
+        COUNT(*) as count
+    ")
+                ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
                 ->orderBy('hour')
                 ->pluck('count', 'hour')
                 ->toArray();
-
-            // $hours = range(7, 17);
-            // $busyHours = collect($hours)
-            //     ->mapWithKeys(function ($h) use ($busyHours) {
-            //         $start = str_pad($h, 2, '0', STR_PAD_LEFT) . '.00';
-            //         $end = str_pad($h + 1, 2, '0', STR_PAD_LEFT) . '.00';
-
-            //         return ["$start - $end" => $busyHours[$h] ?? 0];
-            //     })
-            //     ->toArray();
-
-            $busyHours = VisitorDetection::selectRaw('HOUR(locale_time) as hour, COUNT(*) as count')
-                ->whereBetween('locale_time', [ $start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59), ])
-                ->where('label', 'out')
-                ->groupBy('hour')
-                ->orderBy('hour')
-                ->pluck('count', 'hour') ->toArray();
 
             $realTimeData = [
                 'total' => [
@@ -165,10 +154,10 @@ class DashboardController extends Controller
                 ],
                 'Dashboard Statistic Fetched Successfully!',
             );
-        } catch (Exception $errr) {
-            Log::info('Error on Dashboard API: ' . $errr->getMessage());
+        } catch (Exception $err) {
+            Log::info('Error on Dashboard API: ' . $err->getMessage());
 
-            return $this->responseError('Server Error on Dashboard API', 500);
+            return $this->responseError('error', $err->getMessage());
         }
     }
 
