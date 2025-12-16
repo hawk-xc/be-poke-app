@@ -29,14 +29,129 @@ class VisitorDetectionController extends Controller
      */
     protected AuthRepository $authRepository;
 
-    protected $searchableColumns = ['id', 'label', 'rec_no', 'channel', 'code', 'action', 'class', 'event_type', 'name', 'locale_time', 'face_sex', 'object_action', 'object_sex', 'emotion', 'passerby_group_id', 'passerby_uid', 'person_uid', 'person_name', 'person_sex', 'person_group_name', 'person_group_type', 'person_pic_url', 'similarity', 'status'];
+    protected $searchableColumns = [// Machine Learning Data
+        'is_registered',
+        'rec_no_in',
+        'is_matched',
+        'is_duplicate',
 
-    protected $selectColumns = ['id', 'rec_no', 'rec_no_in', 'face_token', 'faceset_token', 'channel', 'class', 'event_type', 'locale_time', 'out_locale_time', 'utc', 'real_utc', 'glasses', 'mustache', 'gate_name', 'face_age', 'face_sex', 'emotion', 'person_id', 'embedding_id', 'duration', 'person_group_name', 'person_group_type', 'person_pic_url', 'similarity', 'status', 'deleted_at', 'created_at', 'updated_at', 'label', 'revert_by', 'is_registered', 'is_matched'];
+        // Basic detection data
+        'action',
+        'event_type',
+        'name',
+        'is_global_scene',
+        'locale_time',
+        'utc',
+        'real_utc',
+
+        // Face Data (FaceDetection)
+        'face_age',
+        'face_sex',
+        'face_quality',
+        'face_angle',
+        'face_bounding_box',
+        'face_center',
+        'face_feature',
+        'face_object_id',
+        'glasses',
+        'mustache',
+        'out_locale_time',
+        'gate_name',
+
+        // Additional Object
+        'object_action',
+        'object_bounding_box',
+        'object_age',
+        'object_sex',
+        
+        // Data FaceRecognition (Candidates)
+        'person_id',
+        'person_uid',
+        'person_name',
+        'person_sex',
+        'person_group_name',
+        'person_group_type',
+        'person_pic_url',
+        'person_pic_quality',
+        'similarity',
+
+        // Soft delete
+        'deleted_at',
+
+        'label',
+        'event_type',
+        'rec_no',
+        'channel',
+        'status',
+
+        // revert_by
+        'revert_by'];
+
+    protected $selectColumns = [// Machine Learning Data
+        'is_registered',
+        'rec_no_in',
+        'is_matched',
+        'is_duplicate',
+
+        // Basic detection data
+        'action',
+        'event_type',
+        'name',
+        'is_global_scene',
+        'locale_time',
+        'utc',
+        'real_utc',
+
+        // Face Data (FaceDetection)
+        'face_age',
+        'face_sex',
+        'face_quality',
+        'face_angle',
+        'face_bounding_box',
+        'face_center',
+        'face_feature',
+        'face_object_id',
+        'glasses',
+        'mustache',
+        'out_locale_time',
+        'gate_name',
+
+        // Additional Object
+        'object_action',
+        'object_bounding_box',
+        'object_age',
+        'object_sex',
+
+        // Passerby
+        'passerby_uid',
+
+        // Data FaceRecognition (Candidates)
+        'person_id',
+        'person_uid',
+        'person_name',
+        'person_sex',
+        'person_group_name',
+        'person_group_type',
+        'person_pic_url',
+        'person_pic_quality',
+        'similarity',
+
+        // Soft delete
+        'deleted_at',
+
+        'label',
+        'event_type',
+        'rec_no',
+        'channel',
+        'status',
+
+        // revert_by
+        'revert_by'];
 
     protected $revertColumns = [
         'is_registered' => false,
         'is_matched' => false,
-        'face_token' => null,
+        'person_uid' => null,
         'faceset_token' => null,
         'class' => null,
         'status' => false,
@@ -113,7 +228,7 @@ class VisitorDetectionController extends Controller
 
         // Filter by Processed Data
         if ($request->filled('only_processed')) {
-            $baseQuery->whereNotNull('face_token')->where('is_registered', $request->query('only_processed') === 'true');
+            $baseQuery->whereNotNull('person_uid')->where('is_registered', $request->query('only_processed') === 'true');
         }
 
         // Filter by Processed Data
@@ -641,7 +756,7 @@ class VisitorDetectionController extends Controller
         $query->where('is_registered', true);
         $query->where('is_matched', false);
         $query->whereNull('rec_no_in');
-        $query->whereNotNull('face_token');
+        $query->whereNotNull('person_uid');
 
         if ($request->filled('label')) {
             if ($request->query('label') === 'in') {
@@ -1008,7 +1123,7 @@ class VisitorDetectionController extends Controller
         $visitor_out = Visitor::findOrFail($id);
 
         try {
-            if ($visitor_out->label === 'out' && !is_null($visitor_out->rec_no_in) && $visitor_out->is_matched == true && !is_null($visitor_out->face_token)) {
+            if ($visitor_out->label === 'out' && !is_null($visitor_out->rec_no_in) && $visitor_out->is_matched == true && !is_null($visitor_out->person_uid)) {
                 $visitor_in = $visitor_out->visitorIn;
 
                 if (!$visitor_in) {

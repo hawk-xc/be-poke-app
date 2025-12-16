@@ -81,15 +81,26 @@ class SendGateOutFailsData extends Command
                 // ======================================================
                 // URL FILE Validation
                 // ======================================================
-                $filePath = normalizeFaceImagePath($imageUrl);
-                $storagePath  = $filePath['storage'];
-                $absolutePath = $filePath['absolute'];
+                $paths = normalizeFaceImagePath($imageUrl);
+                $storagePath  = $paths['storage'];
 
-                if (!Storage::exists($storagePath)) {
+                // ============================
+                // FILE CHECK BLOCK
+                // ============================
+                if (!Storage::disk('minio')->exists($storagePath)) {
                     $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
-                    $this->failedAgain++;
                     continue;
                 }
+
+                // ============================
+                // SEND TO CUSTOM ML API BLOCK
+                // ============================
+                $tempFile = tempnam(sys_get_temp_dir(), 'face_');
+
+                file_put_contents(
+                    $tempFile,
+                    Storage::disk('minio')->get($storagePath)
+                );
 
                 // ======================================================
                 // 1. REQUEST EXIT (CUSTOM ML EXIT API)
@@ -98,9 +109,9 @@ class SendGateOutFailsData extends Command
                     $this->api_exit_url,
                     [
                         'image' => new \CURLFile(
-                            $absolutePath,
-                            mime_content_type($absolutePath),
-                            basename($absolutePath)
+                            $tempFile,
+                            mime_content_type($tempFile),
+                            basename($tempFile)
                         ),
                     ]
                 );

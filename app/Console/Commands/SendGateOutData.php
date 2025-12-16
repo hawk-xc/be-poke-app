@@ -22,7 +22,7 @@ class SendGateOutData extends Command
     protected int $getOutAttendingDataMin = 30; // minutes
     protected int $expirateOutDataHour = 12; // hour
     protected int $accuracy = 60; // percentage (confidence threshold)
-    protected int $sleepTime = 1;
+    protected int $sleepTime = 0;
 
     public function __construct()
     {
@@ -39,7 +39,7 @@ class SendGateOutData extends Command
         date_default_timezone_set('Asia/Jakarta');
 
         // CRON Running
-        $start_time = $this->argument('start') ?? Carbon::now()->subMinutes($this->getOutAttendingDataMin);
+        $start_time = $this->argument('start') ?? Carbon::now()->subMinutes($this->toleranceMaxStayMin);
         $end_time   = $this->argument('end') ?? Carbon::now()->subMinutes(5);
 
         $this->info('=== [SendGateOutData] Command Started ===');
@@ -64,39 +64,49 @@ class SendGateOutData extends Command
                 // ======================================================
                 // URL FILE Validation
                 // ======================================================
-                $filePath = normalizeFaceImagePath($imageUrl);
-
-                $storagePath  = $filePath['storage'];
-                $absolutePath = $filePath['absolute'];
+                $paths = normalizeFaceImagePath($imageUrl);
+                $storagePath  = $paths['storage'];
 
                 // ============================
-                // File Checker Block
+                // FILE CHECK BLOCK
                 // ============================
-                if (!Storage::exists($storagePath)) {
+                if (!Storage::disk('minio')->exists($storagePath)) {
                     $this->info("Detection {$detection->id}: FILE NOT FOUND {$storagePath}");
                     continue;
                 }
+
+                // ============================
+                // SEND TO CUSTOM ML API BLOCK
+                // ============================
+                $tempFile = tempnam(sys_get_temp_dir(), 'face_');
+
+                file_put_contents(
+                    $tempFile,
+                    Storage::disk('minio')->get($storagePath)
+                );
 
                 // ======================================================
                 // 1. REQUEST EXIT (CUSTOM ML EXIT API)
                 // ======================================================
                 $exit_response = curlMultipart(
-                    $this->api_exit_url,
+                    $this->api_exit_url . '?similarity_method=compreface',
                     [
                         'image' => new \CURLFile(
-                            $absolutePath,
-                            mime_content_type($absolutePath),
-                            basename($absolutePath)
+                            $tempFile,
+                            mime_content_type($tempFile),
+                            basename($tempFile)
                         ),
                     ]
                 );
 
                 $status = $exit_response['status'];
+                $this->info($status);
                 $body   = $exit_response['body'];
 
                 // debug
                 $this->info($body);
 
+                $this->info('error block state');
                 // Error state block
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - Exit API: HTTP {$status}");
@@ -111,6 +121,7 @@ class SendGateOutData extends Command
                     continue;
                 }
 
+                $this->info('decode state');
                 $exit_data = json_decode($body, true);
 
                 // ======================================================
@@ -125,6 +136,8 @@ class SendGateOutData extends Command
                     continue;
                 }
 
+                $this->info('person entry state');
+
                 // ======================================================
                 // When No Match Found (person_entry_id is null)
                 // ======================================================
@@ -137,10 +150,14 @@ class SendGateOutData extends Command
                     continue;
                 }
 
+                $this->info('entry state');
+
                 // ======================================================
                 // Check Confidence Threshold
                 // ======================================================
-                $confidence = ($exit_data['confidence'] ?? 0) * 100; // Convert to percentage
+                $confidence = (int) ceil((($exit_data['confidence'] * 100))) ?? 0; // Convert to percentage
+
+                $this->info($confidence);
                 
                 if ($confidence < $this->accuracy) {
                     $this->info("Detection {$detection->id} - Confidence too low: {$confidence}%");
@@ -161,6 +178,8 @@ class SendGateOutData extends Command
                     ->where('person_uid', $matched_entry_id)
                     ->where('locale_time', '<', Carbon::parse($detection->locale_time)->subMinutes($this->toleranceMaxStayMin))
                     ->first();
+
+                $this->info($visitor_in);
 
                 if (!$visitor_in) {
                     $this->info("Detection {$detection->id} - No matching 'IN' record found for entry: {$matched_entry_id}");
@@ -198,8 +217,9 @@ class SendGateOutData extends Command
                     // Uncomment if you have a column for landmark data
                     // $detection->face_landmark = json_encode($exit_data['landmark']);
                 }
-
+                
                 $detection->save();
+                $this->info($detection);
 
                 $this->info("Detection {$detection->id} MATCHED with IN record {$visitor_in->rec_no} (Confidence: {$confidence}%, Duration: {$minutes} min)");
                 $this->matchedDataCounter++;
