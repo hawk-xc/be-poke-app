@@ -27,6 +27,7 @@ class UserSeeder extends Seeder
             'name' => 'Admin TWB',
             'email' => 'admin@deraly.id',
             'password' => bcrypt('rootme'),
+            'secure_password' =>  encrypt('rootme')
         ]);
 
         $adminRole = Role::firstOrCreate(['name' => 'admin']);

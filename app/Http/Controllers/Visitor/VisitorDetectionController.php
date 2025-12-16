@@ -122,9 +122,6 @@ class VisitorDetectionController extends Controller
         'object_age',
         'object_sex',
 
-        // Passerby
-        'passerby_uid',
-
         // Data FaceRecognition (Candidates)
         'person_id',
         'person_uid',
