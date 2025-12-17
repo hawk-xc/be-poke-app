@@ -21,7 +21,10 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+	'*',
         'http://36.94.79.204:24443',
+	'http://168.231.119.80:3000',
+	'http://twb-fe:3000',
         'http://localhost:3000',
         'https://twb.deraly.id',
         'http://twb.deraly.id',

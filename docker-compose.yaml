@@ -25,11 +25,9 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
-      DB_HOST: ${DB_HOST:-db}     # host DB (service name di compose lain)
-      DB_PORT: ${DB_PORT:-3306}
+      DB_HOST: 172.17.0.1    # host DB (service name di compose lain)
+      DB_PORT: 5432
     volumes: *code_sync
-    depends_on:
-      - db
     command: >
       sh -c "
         echo '🚀 Starting TWB Backend...' &&
@@ -50,101 +48,6 @@ services:
     networks:
       - chronical-net
 
-  # =====================================
-  # ⚙️ Laravel Queue Worker
-  # =====================================
-  worker:
-    build:
-      context: .
-      target: base
-    container_name: twb-be-worker
-    restart: always
-    working_dir: /var/www
-    env_file:
-      - .env
-    environment:
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-3306}
-    volumes: *code_sync
-    depends_on:
-      - db
-      - backend
-    command: >
-      sh -c "
-        echo '⚙️ Starting Laravel Queue Worker...' &&
-        until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
-        if [ ! -d vendor ]; then
-          echo '📦 vendor not found, running composer install...';
-          composer install --no-interaction --prefer-dist --optimize-autoloader;
-        fi &&
-        php artisan queue:work --tries=3 --timeout=160 --queue=default
-      "
-    networks:
-      - chronical-net
-
-  # =====================================
-  # 📡 Dahua Event Listener
-  # =====================================
-  # listener:
-  #   build: .
-  #   container_name: twb-be-listener
-  #   restart: always
-  #   working_dir: /var/www
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     DB_HOST: ${DB_HOST:-db}
-  #     DB_PORT: ${DB_PORT:-3306}
-  #   volumes: *code_sync
-  #   command: >
-  #     sh -c "
-  #       echo '📡 Starting Dahua Event Listener...' &&
-  #       until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
-  #       if [ ! -d vendor ]; then
-  #         echo '📦 vendor not found, running composer install...';
-  #         composer install --no-interaction --prefer-dist --optimize-autoloader;
-  #       fi &&
-  #       php artisan dahua:face-detection-event-listener
-  #     "
-  #   networks:
-  #     - chronical-net
-
-  # =====================================
-  # 🕒 Laravel Scheduler
-  # =====================================
-  # scheduler:
-  #   build: .
-  #   container_name: twb-be-scheduler
-  #   restart: always
-  #   working_dir: /var/www
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     DB_HOST: ${DB_HOST:-db}
-  #     DB_PORT: ${DB_PORT:-3306}
-  #   volumes: *code_sync
-  #   command: >
-  #     sh -c "
-  #       echo '🕒 Starting Laravel Scheduler using CRON...' &&
-  #       until nc -z $${DB_HOST} $${DB_PORT}; do echo '⏳ Waiting for MySQL at' $${DB_HOST}:$${DB_PORT}; sleep 3; done &&
-  #       if [ ! -d vendor ]; then
-  #         echo '📦 vendor not found, running composer install...';
-  #         composer install --no-interaction --prefer-dist --optimize-autoloader;
-  #       fi &&
-
-  #       echo '* * * * * cd /var/www && php artisan schedule:run >> /var/log/cron.log 2>&1' \
-  #       > /etc/cron.d/laravel &&
-
-  #       chmod 0644 /etc/cron.d/laravel &&
-  #       crontab /etc/cron.d/laravel &&
-
-  #       touch /var/log/cron.log &&
-  #       echo '🟢 Cron started...' &&
-
-  #       crond -f -d 8 >> /var/log/cron.log 2>&1
-  #     "
-  #   networks:
-  #     - chronical-net
 
 networks:
   chronical-net:

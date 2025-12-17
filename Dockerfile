@@ -1,5 +1,5 @@
 # Base pakai CLI supaya bisa php artisan serve (tanpa Nginx/FPM)
-FROM php:8.2-alpine
+FROM php:8.3-alpine AS base
 
 # ----------------------------
 # 🧩 System & PHP extensions
@@ -7,11 +7,12 @@ FROM php:8.2-alpine
 RUN apk add --no-cache \
     bash git zip unzip curl icu-dev libxml2-dev libzip-dev \
     libpng-dev libjpeg-turbo-dev freetype-dev oniguruma-dev zlib-dev \
-    nodejs npm netcat-openbsd shadow cronie \   
+    nodejs npm netcat-openbsd shadow cronie postgresql-dev \
  && mkdir -p /root/.cache/crontab \
  && mkdir -p /etc/cron.d \
  && docker-php-ext-configure gd --with-jpeg --with-freetype \
- && docker-php-ext-install -j$(nproc) gd intl pdo_mysql mbstring bcmath exif pcntl zip
+ && docker-php-ext-install -j$(nproc) \
+    gd intl pdo pdo_pgsql mbstring bcmath exif pcntl zip
 
 # ----------------------------
 # 🧰 Composer
@@ -26,7 +27,7 @@ WORKDIR /var/www
 # ⚡️ Layering: cache composer lebih efisien
 # ----------------------------
 COPY composer.json composer.lock* ./
-RUN composer install --no-interaction --prefer-dist --no-scripts --no-dev || true
+RUN composer install --no-interaction --prefer-dist --no-scripts || true
 
 # ----------------------------
 # 📦 Copy minimal files for production
