@@ -21,7 +21,7 @@ class SendGateOutData extends Command
     protected int $toleranceMaxStayMin = 40; // minutes
     protected int $getOutAttendingDataMin = 30; // minutes
     protected int $expirateOutDataHour = 12; // hour
-    protected int $accuracy = 60; // percentage (confidence threshold)
+    protected int $accuracy = 80; // percentage (confidence threshold)
     protected int $sleepTime = 0;
 
     public function __construct()
@@ -211,6 +211,7 @@ class SendGateOutData extends Command
                 $detection->person_uid          = $exit_data['person_exit_id'] ?? null;
                 $detection->face_sex            = $exit_data['gender'] ?? null;
                 $detection->face_age            = $exit_data['age'] ?? null;
+                $detection->emotion             = $exit_data['exit_expression'] ?? null;
                 
                 // Store landmark if needed (as JSON)
                 if (isset($exit_data['landmark'])) {
