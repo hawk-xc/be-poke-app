@@ -9,6 +9,7 @@ use App\Traits\ResponseTrait;
 use App\Models\VisitorDetection;
 use Illuminate\Support\Facades\Log;
 use App\Repositories\AuthRepository;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -20,11 +21,6 @@ class DashboardController extends Controller
 
     public function __construct(AuthRepository $ar)
     {
-        // $this->middleware(['permission:visitor:list'])->only(['index', 'show']);
-        // $this->middleware(['permission:visitor:create'])->only('store');
-        // $this->middleware(['permission:visitor:edit'])->only('update');
-        // $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
-
         $this->authRepository = $ar;
     }
 
@@ -65,33 +61,69 @@ class DashboardController extends Controller
                 try {
                     $start = Carbon::parse($request->start_date, $timezone)->setTime(0, 1, 0);
                     $end = Carbon::parse($request->end_date, $timezone)->setTime(23, 59, 0);
-
                     $timeLabel = 'custom';
                 } catch (\Exception $e) {
                     return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 422);
                 }
             }
 
-            $realTimeQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->get();
-            $visitorIn = $realTimeQuery->where('label', 'in');
+            Log::info('Dashboard Query Range', [
+                'start' => $start->toDateTimeString(),
+                'end' => $end->toDateTimeString(),
+                'timeLabel' => $timeLabel
+            ]);
 
-            $totalIn = $realTimeQuery->where('label', 'in')->count();
-            $totalOut = $realTimeQuery->where('label', 'out')->count();
-            $totalAll = $realTimeQuery->count();
-            $totalInAll = $visitorIn->count();
+            $startStr = $start->toDateTimeString();
+            $endStr = $end->toDateTimeString();
 
-            $maleCount = $visitorIn->where('face_sex', 'Man')->count();
-            $femaleCount = $visitorIn->where('face_sex', 'Woman')->count();
+            // OPTIMIZED: Hitung total langsung di database tanpa load semua data
+            $totalCounts = VisitorDetection::selectRaw("
+                COUNT(*) as total_all,
+                COUNT(CASE WHEN label = 'in' THEN 1 END) as total_in,
+                COUNT(CASE WHEN label = 'out' THEN 1 END) as total_out
+            ")
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
+
+            $totalIn = $totalCounts->total_in ?? 0;
+            $totalOut = $totalCounts->total_out ?? 0;
+            $totalAll = $totalCounts->total_all ?? 0;
+
+            // OPTIMIZED: Gender count langsung di database
+            $genderCounts = VisitorDetection::selectRaw("
+                COUNT(CASE WHEN face_sex = 'Man' THEN 1 END) as male_count,
+                COUNT(CASE WHEN face_sex = 'Woman' THEN 1 END) as female_count,
+                COUNT(*) as total_in_all
+            ")
+                ->where('label', 'in')
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
+
+            $maleCount = $genderCounts->male_count ?? 0;
+            $femaleCount = $genderCounts->female_count ?? 0;
+            $totalInAll = $genderCounts->total_in_all ?? 0;
 
             $malePercent = $totalInAll > 0 ? round(($maleCount / $totalInAll) * 100, 2) : 0;
             $femalePercent = $totalInAll > 0 ? round(($femaleCount / $totalInAll) * 100, 2) : 0;
 
+            // OPTIMIZED: Age distribution langsung di database
+            $ageCounts = VisitorDetection::selectRaw("
+                COUNT(CASE WHEN face_age BETWEEN 0 AND 17 THEN 1 END) as age_0_17,
+                COUNT(CASE WHEN face_age BETWEEN 18 AND 25 THEN 1 END) as age_18_25,
+                COUNT(CASE WHEN face_age BETWEEN 26 AND 40 THEN 1 END) as age_26_40,
+                COUNT(CASE WHEN face_age BETWEEN 41 AND 60 THEN 1 END) as age_41_60,
+                COUNT(CASE WHEN face_age >= 61 THEN 1 END) as age_61_plus
+            ")
+                ->where('label', 'in')
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
+
             $ageCategories = [
-                '0-17' => $visitorIn->whereBetween('face_age', [0, 17])->count(),
-                '18-25' => $visitorIn->whereBetween('face_age', [18, 25])->count(),
-                '26-40' => $visitorIn->whereBetween('face_age', [26, 40])->count(),
-                '41-60' => $visitorIn->whereBetween('face_age', [41, 60])->count(),
-                '61+' => $visitorIn->where('face_age', '>=', 61)->count(),
+                '0-17' => $ageCounts->age_0_17 ?? 0,
+                '18-25' => $ageCounts->age_18_25 ?? 0,
+                '26-40' => $ageCounts->age_26_40 ?? 0,
+                '41-60' => $ageCounts->age_41_60 ?? 0,
+                '61+' => $ageCounts->age_61_plus ?? 0,
             ];
 
             $agePercentages = [];
@@ -99,24 +131,42 @@ class DashboardController extends Controller
                 $agePercentages[$range] = $totalInAll > 0 ? round(($count / $totalInAll) * 100, 2) : 0;
             }
 
-            // RATA-RATA LAMA KUNJUNGAN
-            $lengthOfVisit = $realTimeQuery->where('label', 'out')->where('is_matched', 1)->avg('duration');
-            $lengthOfVisit = $lengthOfVisit ? round($lengthOfVisit, 2) : 0;
+            // RATA-RATA LAMA KUNJUNGAN - langsung di database
+            $avgDuration = VisitorDetection::where('label', 'out')
+                ->where('is_matched', true)
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->avg('duration');
+
+            $lengthOfVisit = $avgDuration ? round($avgDuration, 2) : 0;
 
             // PEAK HOURS (07.00 - 17.59)
-            $busyHours = VisitorDetection::where('label', 'out')
-                ->whereBetween('locale_time', [
-                    $start->copy()->setTime(7, 0),
-                    $end->copy()->setTime(17, 59, 59),
-                ])
-                ->selectRaw("
-        EXTRACT(HOUR FROM locale_time::timestamp) as hour,
-        COUNT(*) as count
-    ")
-                ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
-                ->orderBy('hour')
-                ->pluck('count', 'hour')
-                ->toArray();
+            try {
+                $startPeak = $start->copy()->setTime(7, 0)->toDateTimeString();
+                $endPeak = $end->copy()->setTime(17, 59, 59)->toDateTimeString();
+
+                $busyHoursData = VisitorDetection::selectRaw("
+                    EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
+                    COUNT(*) as count
+                ")
+                    ->where('label', 'out')
+                    ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startPeak, $endPeak])
+                    ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
+                    ->orderBy('hour')
+                    ->get();
+
+                $busyHours = [];
+                foreach ($busyHoursData as $item) {
+                    $busyHours[$item->hour] = $item->count;
+                }
+
+                Log::info('Busy Hours Query Success', ['count' => count($busyHours)]);
+            } catch (\Exception $e) {
+                Log::error('Error on Busy Hours Query', [
+                    'message' => $e->getMessage(),
+                    'line' => $e->getLine()
+                ]);
+                $busyHours = [];
+            }
 
             $realTimeData = [
                 'total' => [
@@ -147,6 +197,8 @@ class DashboardController extends Controller
                 ],
             ];
 
+            Log::info('Dashboard Query Success', ['timeLabel' => $timeLabel]);
+
             return $this->responseSuccess(
                 [
                     'realtime_data' => $realTimeData,
@@ -155,9 +207,14 @@ class DashboardController extends Controller
                 'Dashboard Statistic Fetched Successfully!',
             );
         } catch (Exception $err) {
-            Log::info('Error on Dashboard API: ' . $err->getMessage());
+            Log::error('Error on Dashboard API', [
+                'message' => $err->getMessage(),
+                'line' => $err->getLine(),
+                'file' => $err->getFile(),
+                'trace' => $err->getTraceAsString()
+            ]);
 
-            return $this->responseError('error', $err->getMessage());
+            return $this->responseError($err->getMessage(), 500);
         }
     }
 
