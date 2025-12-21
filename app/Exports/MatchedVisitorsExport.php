@@ -14,10 +14,12 @@ class MatchedVisitorsExport implements
     WithChunkReading
 {
     protected $query;
+    protected $publicUrl;
 
     public function __construct($query)
     {
         $this->query = $query;
+        $this->publicUrl = env('MINIO_PUBLIC_ENDPOINT') . '/' . env('MINIO_BUCKET');
     }
 
     public function query()
@@ -36,6 +38,9 @@ class MatchedVisitorsExport implements
             'GATE OUT',
             'TIME IN',
             'TIME OUT',
+            'IN IMAGE',
+            'OUT IMAGE',
+            'DURATION',
             'EMOTION',
             'SEX',
         ];
@@ -52,6 +57,9 @@ class MatchedVisitorsExport implements
             $out->gate_name,
             $in?->locale_time,
             $out->locale_time,
+            $this->publicUrl . $in->person_pic_url,
+            $this->publicUrl . $out->person_pic_url,
+            $out->duration,
             $out->emotion,
             $out->face_sex,
         ];
