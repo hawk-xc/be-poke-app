@@ -57,7 +57,7 @@ class MatchedVisitorsExport implements
             $out->gate_name,
             $in?->locale_time,
             $out->locale_time,
-            $this->publicUrl . $in->person_pic_url,
+            $this->publicUrl . $in?->person_pic_url,
             $this->publicUrl . $out->person_pic_url,
             $out->duration,
             $out->emotion,
