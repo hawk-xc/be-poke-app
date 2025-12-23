@@ -29,65 +29,7 @@ class VisitorDetectionController extends Controller
      */
     protected AuthRepository $authRepository;
 
-    protected $searchableColumns = [// Machine Learning Data
-        'is_registered',
-        'rec_no_in',
-        'is_matched',
-        'is_duplicate',
-
-        // Basic detection data
-        'action',
-        'event_type',
-        'name',
-        'is_global_scene',
-        'locale_time',
-        'utc',
-        'real_utc',
-
-        // Face Data (FaceDetection)
-        'face_age',
-        'face_sex',
-        'face_quality',
-        'face_angle',
-        'face_bounding_box',
-        'face_center',
-        'face_feature',
-        'face_object_id',
-        'glasses',
-        'mustache',
-        'out_locale_time',
-        'gate_name',
-
-        // Additional Object
-        'object_action',
-        'object_bounding_box',
-        'object_age',
-        'object_sex',
-        
-        // Data FaceRecognition (Candidates)
-        'person_id',
-        'person_uid',
-        'person_name',
-        'person_sex',
-        'person_group_name',
-        'person_group_type',
-        'person_pic_url',
-        'person_pic_quality',
-        'similarity',
-
-        // Soft delete
-        'deleted_at',
-
-        'label',
-        'event_type',
-        'rec_no',
-        'channel',
-        'status',
-
-        // revert_by
-        'revert_by'];
-
-    protected $selectColumns = [// Machine Learning Data
+    protected $searchableColumns = [ // Machine Learning Data
         'is_registered',
         'rec_no_in',
         'is_matched',
@@ -143,7 +85,67 @@ class VisitorDetectionController extends Controller
         'status',
 
         // revert_by
-        'revert_by'];
+        'revert_by'
+    ];
+
+    protected $selectColumns = [ // Machine Learning Data
+        'is_registered',
+        'rec_no_in',
+        'is_matched',
+        'is_duplicate',
+
+        // Basic detection data
+        'action',
+        'event_type',
+        'name',
+        'is_global_scene',
+        'locale_time',
+        'utc',
+        'real_utc',
+
+        // Face Data (FaceDetection)
+        'face_age',
+        'face_sex',
+        'face_quality',
+        'face_angle',
+        'face_bounding_box',
+        'face_center',
+        'face_feature',
+        'face_object_id',
+        'glasses',
+        'mustache',
+        'out_locale_time',
+        'gate_name',
+
+        // Additional Object
+        'object_action',
+        'object_bounding_box',
+        'object_age',
+        'object_sex',
+
+        // Data FaceRecognition (Candidates)
+        'person_id',
+        'person_uid',
+        'person_name',
+        'person_sex',
+        'person_group_name',
+        'person_group_type',
+        'person_pic_url',
+        'person_pic_quality',
+        'similarity',
+
+        // Soft delete
+        'deleted_at',
+
+        'label',
+        'event_type',
+        'rec_no',
+        'channel',
+        'status',
+
+        // revert_by
+        'revert_by'
+    ];
 
     protected $revertColumns = [
         'is_registered' => false,
@@ -531,6 +533,7 @@ class VisitorDetectionController extends Controller
             'start_date' => 'sometimes|date_format:Y-m-d',
             'end_date' => 'sometimes|date_format:Y-m-d',
         ]);
+
         try {
             $timezone = config('app.timezone', 'Asia/Jakarta');
             $start = now($timezone)->startOfDay();
@@ -588,50 +591,69 @@ class VisitorDetectionController extends Controller
                 }
             }
 
-            $baseQuery = VisitorDetection::whereBetween('locale_time', [$start, $end])->matched();
+            $startStr = $start->toDateTimeString();
+            $endStr = $end->toDateTimeString();
 
-            if ($request->filled('search')) {
-                $search = $request->query('search');
-                $searchBy = $request->query('search_by');
+            // OPTIMIZED: Gunakan aggregate query langsung di database
+            $summaryData = VisitorDetection::selectRaw("
+            COUNT(*) as total_all,
+            COUNT(CASE WHEN label = 'in' THEN 1 END) as total_in,
+            COUNT(CASE WHEN label = 'out' THEN 1 END) as total_out,
+            COUNT(CASE WHEN label = 'out' AND is_matched = true THEN 1 END) as matched_count
+        ")
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $search = $request->query('search');
+                    $searchBy = $request->query('search_by');
 
-                if (!empty($searchBy) && in_array($searchBy, $this->searchableColumns)) {
-                    $baseQuery->where($searchBy, 'like', "%{$search}%");
-                } else {
-                    $baseQuery->where(function ($q) use ($search) {
-                        foreach ($this->searchableColumns as $col) {
-                            $q->orWhere($col, 'like', "%{$search}%");
-                        }
-                    });
-                }
-            }
+                    if (!empty($searchBy) && in_array($searchBy, $this->searchableColumns)) {
+                        $query->where($searchBy, 'like', "%{$search}%");
+                    } else {
+                        $query->where(function ($q) use ($search) {
+                            foreach ($this->searchableColumns as $col) {
+                                $q->orWhere($col, 'like', "%{$search}%");
+                            }
+                        });
+                    }
+                })
+                ->first();
 
-            $visitors = $baseQuery->get();
-
-            $totalIn = $visitors->where('label', 'in')->count();
-            $totalOut = $visitors->where('label', 'out')->count();
-            $totalAll = $visitors->count();
+            $totalAll = $summaryData->total_all ?? 0;
+            $totalIn = $summaryData->total_in ?? 0;
+            $totalOut = $summaryData->total_out ?? 0;
+            $matchedCount = $summaryData->matched_count ?? 0;
             $visitorInside = $totalIn - $totalOut;
 
-            $matchedVisitors = $visitors->where('label', 'out')->where('is_matched', 1)->whereNotNull('duration');
+            // DURATION STATISTICS - langsung aggregate di database
+            $durationStats = VisitorDetection::selectRaw("
+            SUM(duration) as total_duration,
+            AVG(duration) as avg_duration
+        ")
+                ->where('label', 'out')
+                ->where('is_matched', true)
+                ->whereNotNull('duration')
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
 
-            $totalHours = $matchedVisitors->sum('duration') / 60;
-            $totalMinutes = $matchedVisitors->sum('duration');
-
-            $avgDuration = $matchedVisitors->avg('duration');
+            $totalMinutes = $durationStats->total_duration ?? 0;
+            $totalHours = $totalMinutes / 60;
+            $avgDuration = $durationStats->avg_duration ?? 0;
             $lengthOfVisit = $avgDuration ? round($avgDuration, 2) : 0;
             $lengthOfVisitHours = $avgDuration ? round($avgDuration / 60, 2) : 0;
 
-            $peakHoursData = VisitorDetection::selectRaw(
-                '
-                HOUR(locale_time) as hour,
-                COUNT(*) as visit_count,
-                AVG(duration) as avg_duration
-            ',
-            )
-                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
+            // PEAK HOURS - Fixed untuk PostgreSQL
+            $startPeak = $start->copy()->setTime(7, 0)->toDateTimeString();
+            $endPeak = $end->copy()->setTime(17, 59, 59)->toDateTimeString();
+
+            $peakHoursData = VisitorDetection::selectRaw("
+            EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
+            COUNT(*) as visit_count,
+            AVG(duration) as avg_duration
+        ")
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startPeak, $endPeak])
                 ->where('label', 'out')
-                ->where('is_matched', 1)
-                ->groupBy('hour')
+                ->where('is_matched', true)
+                ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
                 ->orderBy('hour')
                 ->get()
                 ->keyBy('hour');
@@ -659,24 +681,43 @@ class VisitorDetectionController extends Controller
                 // Peak Hour
                 if ($visitCount > $peakHourCount) {
                     $peakHourCount = $visitCount;
-                    $peakHour = "$start_hour - $end_hour";
+                    $peakHour = $h;
                 }
             }
 
-            $peakHourFormatted = $peakHour ? sprintf('%02d:00', $peakHour) : null;
+            $peakHourFormatted = $peakHour !== null ? sprintf('%02d:00 - %02d:00', $peakHour, $peakHour + 1) : null;
 
-            $maleCount = $visitors->where('face_sex', 'Man')->count();
-            $femaleCount = $visitors->where('face_sex', 'Woman')->count();
+            // GENDER DISTRIBUTION - aggregate di database
+            $genderData = VisitorDetection::selectRaw("
+            COUNT(CASE WHEN face_sex = 'Man' THEN 1 END) as male_count,
+            COUNT(CASE WHEN face_sex = 'Woman' THEN 1 END) as female_count
+        ")
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
+
+            $maleCount = $genderData->male_count ?? 0;
+            $femaleCount = $genderData->female_count ?? 0;
 
             $malePercent = $totalAll > 0 ? round(($maleCount / $totalAll) * 100, 2) : 0;
             $femalePercent = $totalAll > 0 ? round(($femaleCount / $totalAll) * 100, 2) : 0;
 
+            // AGE DISTRIBUTION - aggregate di database
+            $ageData = VisitorDetection::selectRaw("
+            COUNT(CASE WHEN face_age BETWEEN 0 AND 17 THEN 1 END) as age_0_17,
+            COUNT(CASE WHEN face_age BETWEEN 18 AND 25 THEN 1 END) as age_18_25,
+            COUNT(CASE WHEN face_age BETWEEN 26 AND 40 THEN 1 END) as age_26_40,
+            COUNT(CASE WHEN face_age BETWEEN 41 AND 60 THEN 1 END) as age_41_60,
+            COUNT(CASE WHEN face_age >= 61 THEN 1 END) as age_61_plus
+        ")
+                ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->first();
+
             $ageCategories = [
-                '0-17' => $visitors->whereBetween('face_age', [0, 17])->count(),
-                '18-25' => $visitors->whereBetween('face_age', [18, 25])->count(),
-                '26-40' => $visitors->whereBetween('face_age', [26, 40])->count(),
-                '41-60' => $visitors->whereBetween('face_age', [41, 60])->count(),
-                '61+' => $visitors->where('face_age', '>=', 61)->count(),
+                '0-17' => $ageData->age_0_17 ?? 0,
+                '18-25' => $ageData->age_18_25 ?? 0,
+                '26-40' => $ageData->age_26_40 ?? 0,
+                '41-60' => $ageData->age_41_60 ?? 0,
+                '61+' => $ageData->age_61_plus ?? 0,
             ];
 
             $agePercentages = [];
@@ -690,7 +731,7 @@ class VisitorDetectionController extends Controller
                     'visitor_in' => $totalIn,
                     'visitor_out' => $totalOut,
                     'visitor_inside' => $visitorInside,
-                    'matched_visitors' => $matchedVisitors->count(),
+                    'matched_visitors' => $matchedCount,
                 ],
                 'duration_statistics' => [
                     'total_hours' => round($totalHours, 2),
@@ -726,6 +767,11 @@ class VisitorDetectionController extends Controller
 
             return $this->responseSuccess($reportData, 'Report Fetched Successfully!');
         } catch (\Exception $err) {
+            Log::error('Error on Report API', [
+                'message' => $err->getMessage(),
+                'line' => $err->getLine(),
+                'file' => $err->getFile(),
+            ]);
             return $this->responseError(null, $err->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

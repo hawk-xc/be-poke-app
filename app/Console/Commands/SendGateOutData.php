@@ -194,7 +194,9 @@ class SendGateOutData extends Command
                 // MATCH VALID - Calculate Duration from API or manually
                 // ======================================================
                 // Use duration from API if available, otherwise calculate manually
-                $minutes = $exit_data['duration_minutes'] ?? Carbon::parse($visitor_in->locale_time)
+                // $minutes = $exit_data['duration_minutes'] ?? Carbon::parse($visitor_in->locale_time)
+                //     ->diffInMinutes(Carbon::parse($detection->locale_time));
+                $minutes = Carbon::parse($visitor_in->locale_time)
                     ->diffInMinutes(Carbon::parse($detection->locale_time));
 
                 // ======================================================
@@ -231,7 +233,7 @@ class SendGateOutData extends Command
                 $detection->save();
 
                 Log::error("SendGateOut Error on Detection {$detection->id}: " . $err->getMessage());
-                sendTelegram('🔴 [SendGateOutEvent] Send Gate Out Error: ' . $err->getMessage());
+                sendTelegram('🔴 Production Server [SendGateOutEvent] Send Gate Out Error: ' . $err->getMessage());
                 $this->info("Error on detection {$detection->id}: " . $err->getMessage());
             }
         }
@@ -240,7 +242,7 @@ class SendGateOutData extends Command
         // TELEGRAM SUMMARY REPORT
         // ============================
         $summary = "
-🔵 <b>[SendGateOutEvent] Summary Report</b>
+🔵 <b>Production-Server [SendGateOutEvent] Summary Report</b>
 
 <b>Total Gate-Out Detections:</b> {$visitor_detections->count()}
 

@@ -162,7 +162,8 @@ class SendGateOutFailsData extends Command
                 // ======================================================
                 // Check Confidence Threshold
                 // ======================================================
-                $confidence = ($exit_data['confidence'] ?? 0) * 100; // Convert to percentage
+                // $confidence = ($exit_data['confidence'] ?? 0) * 100; // Convert to percentage
+                $confidence = (int) ceil((($exit_data['confidence'] * 100))) ?? 0;
 
                 if ($confidence < $this->accuracy) {
                     $this->info("Detection {$detection->id} - Confidence too low on resend: {$confidence}%");
@@ -233,7 +234,7 @@ class SendGateOutFailsData extends Command
             } catch (Exception $err) {
                 $this->failedAgain++;
                 Log::error("ResendFailedGateOut Error on Detection {$detection->id}: " . $err->getMessage());
-                sendTelegram('🔴 [ResendFailedGateOut] Resend Error: ' . $err->getMessage());
+                sendTelegram('🔴 Production-Server [ResendFailedGateOut] Resend Error: ' . $err->getMessage());
                 $this->error("Error on resending detection {$detection->id}: " . $err->getMessage());
             }
         }
@@ -242,7 +243,7 @@ class SendGateOutFailsData extends Command
         // TELEGRAM SUMMARY REPORT
         // ============================
         $summary = "
-🔵 <b>[ResendFailedGateOut] Summary Report</b>
+🔵 <b>Production-Server [ResendFailedGateOut] Summary Report</b>
 
 <b>Total Failed Records Processed:</b> {$failed_detections->count()}
 

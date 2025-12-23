@@ -130,7 +130,7 @@ class SendGateInData extends Command
                 $this->info("ERROR ON DETECTION {$detection->id}: " . $err->getMessage());
                 Log::error("SendGateIn Error on Detection {$detection->id}: " . $err->getMessage());
 
-                sendTelegram('🔴 [SendGateInEvent] Send Gate In Error: ' . $err->getMessage());
+                sendTelegram('🔴 Production-Server [SendGateInEvent] Send Gate In Error: ' . $err->getMessage());
             }
         }
 
@@ -138,7 +138,7 @@ class SendGateInData extends Command
         // TELEGRAM SUMMARY REPORT
         // ============================
         $summaryMessage = "
-🟢 <b>[SendGateInEvent] Summary Report</b>
+🟢 <b>Production-Server [SendGateInEvent] Summary Report</b>
 
 <b>Total Detections Processed:</b> {$visitor_detections->count()}
 
