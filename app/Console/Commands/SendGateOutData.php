@@ -99,6 +99,8 @@ class SendGateOutData extends Command
                     ]
                 );
 
+                $this->info(print_r($exit_response));
+
                 $status = $exit_response['status'];
                 $this->info($status);
                 $body   = $exit_response['body'];
@@ -109,7 +111,7 @@ class SendGateOutData extends Command
                 $this->info('error block state');
                 // Error state block
                 if ($status !== 200) {
-                    $this->info("Detection {$detection->id} - Exit API: HTTP {$status}");
+                    $this->info("Detection {$detection->id} - Exit API: HTTP {$status} with data {$body}");
                     $existingFail = VisitorDetectionFails::where('rec_no', $detection->rec_no)->first();
 
                     if (!$existingFail) {
@@ -158,7 +160,7 @@ class SendGateOutData extends Command
                 $confidence = (int) ceil((($exit_data['confidence'] * 100))) ?? 0; // Convert to percentage
 
                 $this->info($confidence);
-                
+
                 if ($confidence < $this->accuracy) {
                     $this->info("Detection {$detection->id} - Confidence too low: {$confidence}%");
                     $detection->is_matched = false;
@@ -172,7 +174,7 @@ class SendGateOutData extends Command
                 // Find Matching IN Record
                 // ======================================================
                 $matched_entry_id = $exit_data['person_entry_id'];
-                
+
                 $visitor_in = VisitorDetection::select(['id', 'rec_no', 'locale_time', 'person_uid'])
                     ->where('label', 'in')
                     ->where('person_uid', $matched_entry_id)
@@ -194,8 +196,10 @@ class SendGateOutData extends Command
                 // MATCH VALID - Calculate Duration from API or manually
                 // ======================================================
                 // Use duration from API if available, otherwise calculate manually
-                $minutes = $exit_data['duration_minutes'] ?? Carbon::parse($visitor_in->locale_time)
-                    ->diffInMinutes(Carbon::parse($detection->locale_time));
+                // $minutes = $exit_data['duration_minutes'] ?? Carbon::parse($visitor_in->locale_time)
+                //     ->diffInMinutes(Carbon::parse($detection->locale_time));
+                $minutes = round(Carbon::parse($visitor_in->locale_time)
+                    ->diffInMinutes(Carbon::parse($detection->locale_time), false));
 
                 // ======================================================
                 // Save Matching Results with Response Mapping
@@ -206,32 +210,31 @@ class SendGateOutData extends Command
                 $detection->similarity          = $confidence;
                 $detection->status              = true;
                 $detection->is_registered       = true;
-                
+
                 // Mapping from exit response
                 $detection->person_uid          = $exit_data['person_exit_id'] ?? null;
                 $detection->face_sex            = $exit_data['gender'] ?? null;
                 $detection->face_age            = $exit_data['age'] ?? null;
                 $detection->emotion             = $exit_data['exit_expression'] ?? null;
-                
+
                 // Store landmark if needed (as JSON)
                 if (isset($exit_data['landmark'])) {
                     // Uncomment if you have a column for landmark data
                     // $detection->face_landmark = json_encode($exit_data['landmark']);
                 }
-                
+
                 $detection->save();
                 $this->info($detection);
 
                 $this->info("Detection {$detection->id} MATCHED with IN record {$visitor_in->rec_no} (Confidence: {$confidence}%, Duration: {$minutes} min)");
                 $this->matchedDataCounter++;
-
             } catch (Exception $err) {
                 $detection->is_registered = false;
                 $detection->status = false;
                 $detection->save();
 
                 Log::error("SendGateOut Error on Detection {$detection->id}: " . $err->getMessage());
-                sendTelegram('🔴 [SendGateOutEvent] Send Gate Out Error: ' . $err->getMessage());
+                sendTelegram('🔴 Production-Server [SendGateOutEvent] Send Gate Out Error: ' . $err->getMessage());
                 $this->info("Error on detection {$detection->id}: " . $err->getMessage());
             }
         }
@@ -240,7 +243,7 @@ class SendGateOutData extends Command
         // TELEGRAM SUMMARY REPORT
         // ============================
         $summary = "
-🔵 <b>[SendGateOutEvent] Summary Report</b>
+🔵 <b>Production-Server [SendGateOutEvent] Summary Report</b>
 
 <b>Total Gate-Out Detections:</b> {$visitor_detections->count()}
 

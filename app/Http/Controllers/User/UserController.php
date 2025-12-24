@@ -42,6 +42,24 @@ class UserController extends Controller
     {
         $users = User::with('roles');
 
+        if ($request->filled('status')) {
+            $users->where('is_active', $request->status === 'true' ? true : false);
+        }
+
+        if ($request->filled('search')) {
+            $users->where(function ($query) use ($request) {
+                if ($request->filled('strict') && $request->strict == 'true') {
+                    $query->where('name', $request->search)
+                        ->orWhere('email', $request->search)
+                        ->orWhere('username', $request->search);
+                } else {
+                    $query->where('name', 'like', '%' . $request->search . '%')
+                        ->orWhere('email', 'like', '%' . $request->search . '%')
+                        ->orWhere('username', 'like', '%' . $request->search . '%');
+                }
+            });
+        }
+
         if ($request->has('role')) {
             $users->whereHas('roles', function ($query) use ($request) {
                 $query->where('name', $request->role);
