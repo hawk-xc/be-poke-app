@@ -72,29 +72,22 @@ class DashboardController extends Controller
                 }
             }
 
-            Log::info('Dashboard Query Range', [
-                'start' => $start->toDateTimeString(),
-                'end' => $end->toDateTimeString(),
-                'timeLabel' => $timeLabel
-            ]);
-
             $startStr = $start->toDateTimeString();
             $endStr = $end->toDateTimeString();
 
-            // OPTIMIZED: Hitung total langsung di database tanpa load semua data
             $totalCounts = VisitorDetection::selectRaw("
                 COUNT(*) as total_all,
                 COUNT(CASE WHEN label = 'in' THEN 1 END) as total_in,
                 COUNT(CASE WHEN label = 'out' THEN 1 END) as total_out
             ")
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->where('is_duplicate', false)
                 ->first();
 
             $totalIn = $totalCounts->total_in ?? 0;
             $totalOut = $totalCounts->total_out ?? 0;
             $totalAll = $totalCounts->total_all ?? 0;
 
-            // OPTIMIZED: Gender count langsung di database
             $genderCounts = VisitorDetection::selectRaw("
                 COUNT(CASE WHEN face_sex = 'Man' THEN 1 END) as male_count,
                 COUNT(CASE WHEN face_sex = 'Woman' THEN 1 END) as female_count,
@@ -102,6 +95,7 @@ class DashboardController extends Controller
             ")
                 ->where('label', 'in')
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->where('is_duplicate', false)
                 ->first();
 
             $maleCount = $genderCounts->male_count ?? 0;
@@ -121,6 +115,7 @@ class DashboardController extends Controller
             ")
                 ->where('label', 'in')
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->where('is_duplicate', false)
                 ->first();
 
             $ageCategories = [
@@ -140,6 +135,7 @@ class DashboardController extends Controller
             $avgDuration = VisitorDetection::where('label', 'out')
                 ->where('is_matched', true)
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startStr, $endStr])
+                ->where('is_duplicate', false)
                 ->avg('duration');
 
             $lengthOfVisit = $avgDuration ? round($avgDuration, 2) : 0;
@@ -156,6 +152,7 @@ class DashboardController extends Controller
                     ->where('label', 'out')
                     ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startPeak, $endPeak])
                     ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
+                    ->where('is_duplicate', false)
                     ->orderBy('hour')
                     ->get();
 
