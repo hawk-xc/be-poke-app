@@ -215,7 +215,7 @@ class SendGateOutData extends Command
                 $detection->person_uid          = $exit_data['person_exit_id'] ?? null;
                 $detection->face_sex            = $exit_data['gender'] ?? null;
                 $detection->face_age            = $exit_data['age'] ?? null;
-                $detection->emotion             = $exit_data['exit_expression'] ?? null;
+                // $detection->emotion             = $exit_data['exit_expression'] ?? null;
 
                 // Store landmark if needed (as JSON)
                 if (isset($exit_data['landmark'])) {
