@@ -627,9 +627,9 @@ class VisitorDetectionController extends Controller
 
             $peakHoursData = VisitorDetection::selectRaw(
                 '
-                HOUR(locale_time) as hour,
-                COUNT(*) as visit_count,
-                AVG(duration) as avg_duration
+                EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
+                    COUNT(*) as visit_count
+                    AVG(duration) as avg_duration
             ',
             )
                 ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
