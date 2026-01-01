@@ -106,7 +106,7 @@ class SendGateOutFailsData extends Command
                 // 1. REQUEST EXIT (CUSTOM ML EXIT API)
                 // ======================================================
                 $exit_response = curlMultipart(
-                    $this->api_exit_url,
+                    $this->api_exit_url . '?similarity_method=compreface',
                     [
                         'image' => new \CURLFile(
                             $tempFile,

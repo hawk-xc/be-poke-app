@@ -168,10 +168,10 @@ class VisitorDetectionController extends Controller
      */
     public function __construct(AuthRepository $ar)
     {
-        // $this->middleware(['permission:visitor:list'])->only(['index', 'show', 'getReport', 'getQueues', 'getMatch', 'getMatchedData']);
-        // $this->middleware(['permission:visitor:create'])->only('store');
-        // $this->middleware(['permission:visitor:edit'])->only('update', 'revert', 'revertMatchedData');
-        // $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
+        $this->middleware(['permission:visitor:list'])->only(['index', 'show', 'getReport', 'getQueues', 'getMatch', 'getMatchedData']);
+        $this->middleware(['permission:visitor:create'])->only('store');
+        $this->middleware(['permission:visitor:edit'])->only('update', 'revert', 'revertMatchedData');
+        $this->middleware(['permission:visitor:delete'])->only(['destroy', 'restore', 'forceDelete']);
 
         $this->exportFileName = "twc_visitors_" . now()->format('Ymd_His') . ".csv";
 
@@ -223,6 +223,10 @@ class VisitorDetectionController extends Controller
 
         $baseQuery = Visitor::query();
         $baseQuery->select($this->selectColumns);
+
+        // duplicate remove
+        $baseQuery->where('is_duplicate', false);
+
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
 
         // Filter by Processed Data
@@ -641,6 +645,7 @@ class VisitorDetectionController extends Controller
             $lengthOfVisit = $avgDuration ? round($avgDuration, 2) : 0;
             $lengthOfVisitHours = $avgDuration ? round($avgDuration / 60, 2) : 0;
 
+<<<<<<< HEAD
             // PEAK HOURS - Fixed untuk PostgreSQL
             $startPeak = $start->copy()->setTime(7, 0)->toDateTimeString();
             $endPeak = $end->copy()->setTime(17, 59, 59)->toDateTimeString();
@@ -651,6 +656,16 @@ class VisitorDetectionController extends Controller
             AVG(duration) as avg_duration
         ")
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startPeak, $endPeak])
+=======
+            $peakHoursData = VisitorDetection::selectRaw(
+                "
+                EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
+                COUNT(*) as visit_count,
+                AVG(duration::double precision) AS avg_duration
+                "
+            )
+                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
+>>>>>>> development
                 ->where('label', 'out')
                 ->where('is_matched', true)
                 ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
@@ -903,131 +918,6 @@ class VisitorDetectionController extends Controller
      *
      * @return JsonResponse The matched data with a success response
      */
-    // public function getMatchedData(Request $request): JsonResponse|StreamedResponse
-    // {
-    //     $request->validate([
-    //         'search' => 'sometimes|string',
-    //         'start_time' => 'sometimes|date_format:Y-m-d H:i:s',
-    //         'end_time' => 'sometimes|date_format:Y-m-d H:i:s',
-    //         'start_date' => 'sometimes|date_format:Y-m-d',
-    //         'end_date' => 'sometimes|date_format:Y-m-d',
-    //         'time' => 'sometimes|in:today,week,month,year',
-    //         'export' => 'sometimes|boolean',
-    //         'sum' => 'sometimes|in:count_data',
-    //     ]);
-
-    //     $query = VisitorDetection::query()->matched();
-    //     $timezone = conf    ig('app.timezone', 'Asia/Jakarta');
-
-    //     if ($request->filled('search')) {
-    //         $search = $request->query('search');
-    //         $searchBy = $request->query('search_by');
-    //         $searchableColumns = ['name', 'event_type', 'gate_name', 'face_sex', 'emotion'];
-    //         if (!empty($searchBy) && in_array($searchBy, $searchableColumns)) {
-    //             $query->where($searchBy, 'like', "%{$search}%");
-    //         } else {
-    //             $query->where(function ($q) use ($search, $searchableColumns) {
-    //                 foreach ($searchableColumns as $col) {
-    //                     $q->orWhere($col, 'like', "%{$search}%");
-    //                 }
-    //             });
-    //         }
-    //     }
-
-    //     $filterableColumns = ['name', 'face_sex', 'gate_name', 'event_type', 'emotion'];
-    //     foreach ($filterableColumns as $column) {
-    //         if ($request->filled($column)) {
-    //             $query->where($column, $request->query($column));
-    //         }
-    //     }
-
-    //     if ($request->filled('start_time') && $request->filled('end_time')) {
-    //         try {
-    //             $start = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('start_time'), $timezone);
-    //             $end = Carbon::createFromFormat('Y-m-d H:i:s', $request->query('end_time'), $timezone);
-    //             $query->whereBetween('locale_time', [$start, $end]);
-    //             $timeLabel = 'custom';
-    //         } catch (\Exception $e) {
-    //             return $this->responseError('Format waktu tidak valid. Gunakan format YYYY-MM-DD HH:mm:ss', 'Invalid Date Format', 422);
-    //         }
-    //     }
-
-    //     if ($request->has('start_date') && $request->has('end_date')) {
-    //         $start = Carbon::parse($request->start_date, $timezone)->startOfSecond();
-    //         $end = Carbon::parse($request->end_date, $timezone)->endOfSecond();
-    //         $timeLabel = 'custom';
-    //         $query->whereBetween('locale_time', [$start, $end]);
-    //     } elseif ($request->filled('time')) {
-    //         switch ($request->query('time')) {
-    //             case 'today':
-    //                 $query->today();
-    //                 $start = now($timezone)->startOfDay();
-    //                 $end = now($timezone)->endOfDay();
-    //                 $timeLabel = 'today';
-    //                 break;
-    //             case 'week':
-    //                 $query->thisWeek();
-    //                 $start = now($timezone)->startOfWeek();
-    //                 $end = now($timezone)->endOfWeek();
-    //                 $timeLabel = 'week';
-    //                 break;
-    //             case 'month':
-    //                 $query->thisMonth();
-    //                 $start = now($timezone)->startOfMonth();
-    //                 $end = now($timezone)->endOfMonth();
-    //                 $timeLabel = 'month';
-    //                 break;
-    //             case 'year':
-    //                 $query->thisYear();
-    //                 $start = now($timezone)->startOfYear();
-    //                 $end = now($timezone)->endOfYear();
-    //                 $timeLabel = 'year';
-    //                 break;
-    //         }
-    //     }
-
-    //     if ($request->query('sum') === 'count_data') {
-    //         $count = (clone $query)->count();
-    //         return $this->responseSuccess(['count' => $count], 'Matched Visitors Counted Successfully!');
-    //     }
-
-    //     if ($request->boolean('export') === true) {
-    //         return exportMatchedCSV(clone $query);
-    //     }
-
-    //     if ($request->filled('sort_by')) {
-    //         $sortDir = $request->query('sort_dir', 'asc');
-    //         $query->orderBy($request->query('sort_by'), $sortDir);
-    //     } else {
-    //         $query->latest();
-    //     }
-
-    //     $perPage = $request->query('per_page', 15);
-    //     $dataOut = $query->paginate($perPage);
-
-    //     $result = [];
-    //     foreach ($dataOut as $out) {
-    //         $result[] = $out;
-    //     }
-
-    //     return $this->responseSuccess(
-    //         [
-    //             'data' => $result,
-    //             'pagination' => [
-    //                 'current_page' => $dataOut->currentPage(),
-    //                 'last_page' => $dataOut->lastPage(),
-    //                 'per_page' => $dataOut->perPage(),
-    //                 'total' => $dataOut->total(),
-    //             ],
-    //             'filter_info' => [
-    //                 'time_range' => $timeLabel ?? 'all',
-    //                 'start_date' => $start ? $start->toDateTimeString() : 'all',
-    //                 'end_date' => $end ? $end->toDateTimeString() : 'now',
-    //             ],
-    //         ],
-    //         'Matched Visitor IN/OUT Data Fetched Successfully!',
-    //     );
-    // }
 
     public function getMatchedData(Request $request): JsonResponse|BinaryFileResponse
     {
@@ -1221,6 +1111,7 @@ class VisitorDetectionController extends Controller
         ]);
 
         $baseQuery = Visitor::query();
+        $baseQuery->where('is_duplicate', false);
         $timezone = config('app.timezone', 'Asia/Jakarta');
         $start = null;
         $end = null;

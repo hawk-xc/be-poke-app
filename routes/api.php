@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Role\RoleController;
+use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Visitor\VisitorDetectionController;
 
@@ -63,6 +64,12 @@ Route::group(
             Route::apiResource('', RoleController::class)->parameters(['' => 'roles']);
             Route::get('{id}/without-permissions', [RoleController::class, 'showWithoutPermissions'])->name('roles.without-permissions');
             Route::post('{id}/assign-permissions', [RoleController::class, 'assignPermissions'])->name('roles.assign-permissions');
+        });
+
+        // Permission API
+        Route::group(['prefix' => 'permissions'], function() {
+            Route::get('', [PermissionController::class, 'index']);
+            Route::get('{id}', [PermissionController::class, 'show']);
         });
 
         // Visitor API
