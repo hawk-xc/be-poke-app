@@ -29,65 +29,7 @@ class VisitorDetectionController extends Controller
      */
     protected AuthRepository $authRepository;
 
-    protected $searchableColumns = [// Machine Learning Data
-        'is_registered',
-        'rec_no_in',
-        'is_matched',
-        'is_duplicate',
-
-        // Basic detection data
-        'action',
-        'event_type',
-        'name',
-        'is_global_scene',
-        'locale_time',
-        'utc',
-        'real_utc',
-
-        // Face Data (FaceDetection)
-        'face_age',
-        'face_sex',
-        'face_quality',
-        'face_angle',
-        'face_bounding_box',
-        'face_center',
-        'face_feature',
-        'face_object_id',
-        'glasses',
-        'mustache',
-        'out_locale_time',
-        'gate_name',
-
-        // Additional Object
-        'object_action',
-        'object_bounding_box',
-        'object_age',
-        'object_sex',
-        
-        // Data FaceRecognition (Candidates)
-        'person_id',
-        'person_uid',
-        'person_name',
-        'person_sex',
-        'person_group_name',
-        'person_group_type',
-        'person_pic_url',
-        'person_pic_quality',
-        'similarity',
-
-        // Soft delete
-        'deleted_at',
-
-        'label',
-        'event_type',
-        'rec_no',
-        'channel',
-        'status',
-
-        // revert_by
-        'revert_by'];
-
-    protected $selectColumns = [// Machine Learning Data
+    protected $searchableColumns = [ // Machine Learning Data
         'is_registered',
         'rec_no_in',
         'is_matched',
@@ -143,7 +85,67 @@ class VisitorDetectionController extends Controller
         'status',
 
         // revert_by
-        'revert_by'];
+        'revert_by'
+    ];
+
+    protected $selectColumns = [ // Machine Learning Data
+        'is_registered',
+        'rec_no_in',
+        'is_matched',
+        'is_duplicate',
+
+        // Basic detection data
+        'action',
+        'event_type',
+        'name',
+        'is_global_scene',
+        'locale_time',
+        'utc',
+        'real_utc',
+
+        // Face Data (FaceDetection)
+        'face_age',
+        'face_sex',
+        'face_quality',
+        'face_angle',
+        'face_bounding_box',
+        'face_center',
+        'face_feature',
+        'face_object_id',
+        'glasses',
+        'mustache',
+        'out_locale_time',
+        'gate_name',
+
+        // Additional Object
+        'object_action',
+        'object_bounding_box',
+        'object_age',
+        'object_sex',
+
+        // Data FaceRecognition (Candidates)
+        'person_id',
+        'person_uid',
+        'person_name',
+        'person_sex',
+        'person_group_name',
+        'person_group_type',
+        'person_pic_url',
+        'person_pic_quality',
+        'similarity',
+
+        // Soft delete
+        'deleted_at',
+
+        'label',
+        'event_type',
+        'rec_no',
+        'channel',
+        'status',
+
+        // revert_by
+        'revert_by'
+    ];
 
     protected $revertColumns = [
         'is_registered' => false,
@@ -221,10 +223,10 @@ class VisitorDetectionController extends Controller
 
         $baseQuery = Visitor::query();
         $baseQuery->select($this->selectColumns);
-        
+
         // duplicate remove
         $baseQuery->where('is_duplicate', false);
-        
+
         $filterableColumns = ['name', 'gender', 'phone_number', 'address', 'is_active'];
 
         // Filter by Processed Data
@@ -626,11 +628,11 @@ class VisitorDetectionController extends Controller
             $lengthOfVisitHours = $avgDuration ? round($avgDuration / 60, 2) : 0;
 
             $peakHoursData = VisitorDetection::selectRaw(
-                '
+                "
                 EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
-                    COUNT(*) as visit_count
-                    AVG(duration) as avg_duration
-            ',
+                COUNT(*) as visit_count,
+                AVG(duration::double precision) AS avg_duration
+                "
             )
                 ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
                 ->where('label', 'out')
