@@ -27,7 +27,7 @@ class RoleController extends Controller
         $this->middleware(['permission:roles:update'])->only(['update']);
         $this->middleware(['permission:roles:delete'])->only(['destroy']);
         $this->middleware(['permission:roles:assign-permission'])->only(['assignPermission']);
-        
+
         $this->authRepository = $ar;
     }
 
@@ -40,7 +40,7 @@ class RoleController extends Controller
             $roles->where('name', 'like', '%' . $request->name . '%');
         }
 
-        $roles = $roles->get(); 
+        $roles = $roles->get();
 
         return $this->responseSuccess($roles, 'Roles retrieved successfully');
     }
@@ -73,7 +73,23 @@ class RoleController extends Controller
             'name' => 'required|string|max:255|unique:roles,name'
         ]);
 
+        $request->validate([
+            'permissions' => ['sometimes', 'string', function ($attribute, $value, $fail) {
+                $permissionNames = array_map('trim', explode(',', $value));
+                $dbPermissions = \Spatie\Permission\Models\Permission::whereIn('name', $permissionNames)->get();
+
+                if (count($permissionNames) !== $dbPermissions->count()) {
+                    $missingPermissions = array_diff($permissionNames, $dbPermissions->pluck('name')->all());
+                    $fail('The following permissions do not exist: ' . implode(', ', $missingPermissions));
+                }
+            }],
+        ]);
+
+        $permissionNames = array_map('trim', explode(',', $request->permissions));
+
         $role = Role::create(['name' => $request->name]);
+        $role->givePermissionTo($permissionNames);
+        $role->load('permissions');
 
         return $this->responseSuccess($role, 'Role created successfully');
     }
