@@ -34,7 +34,7 @@ class RoleController extends Controller
 
     public function index(Request $request)
     {
-        $roles = Role::withCount('users');
+        $roles = Role::withCount('users', 'permissions');
 
         if ($request->has('name')) {
             $roles->where('name', 'like', '%' . $request->name . '%');
