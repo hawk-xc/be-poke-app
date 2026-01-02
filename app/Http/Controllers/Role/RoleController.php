@@ -36,8 +36,8 @@ class RoleController extends Controller
     {
         $roles = Role::withCount('users', 'permissions');
 
-        if ($request->has('name')) {
-            $roles->where('name', 'like', '%' . $request->name . '%');
+        if ($request->has('search')) {
+            $roles->where('name', 'like', '%' . $request->search . '%');
         }
 
         $roles = $roles->get();
@@ -73,19 +73,25 @@ class RoleController extends Controller
             'name' => 'required|string|max:255|unique:roles,name'
         ]);
 
-        $request->validate([
-            'permissions' => ['sometimes', 'string', function ($attribute, $value, $fail) {
-                $permissionNames = array_map('trim', explode(',', $value));
-                $dbPermissions = \Spatie\Permission\Models\Permission::whereIn('name', $permissionNames)->get();
+        $permissionNames = null;
 
-                if (count($permissionNames) !== $dbPermissions->count()) {
-                    $missingPermissions = array_diff($permissionNames, $dbPermissions->pluck('name')->all());
-                    $fail('The following permissions do not exist: ' . implode(', ', $missingPermissions));
-                }
-            }],
-        ]);
+        if (!is_array($request->permissions)) {
+            $request->validate([
+                'permissions' => ['sometimes', 'string', function ($attribute, $value, $fail) {
+                    $permissionNames = array_map('trim', explode(',', $value));
+                    $dbPermissions = \Spatie\Permission\Models\Permission::whereIn('name', $permissionNames)->get();
 
-        $permissionNames = array_map('trim', explode(',', $request->permissions));
+                    if (count($permissionNames) !== $dbPermissions->count()) {
+                        $missingPermissions = array_diff($permissionNames, $dbPermissions->pluck('name')->all());
+                        $fail('The following permissions do not exist: ' . implode(', ', $missingPermissions));
+                    }
+                }],
+            ]);
+
+            $permissionNames = array_map('trim', explode(',', $request->permissions));
+        } {
+            $permissionNames = $request->permissions;
+        }
 
         $role = Role::create(['name' => $request->name]);
         $role->givePermissionTo($permissionNames);

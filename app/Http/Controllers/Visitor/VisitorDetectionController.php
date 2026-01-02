@@ -645,7 +645,6 @@ class VisitorDetectionController extends Controller
             $lengthOfVisit = $avgDuration ? round($avgDuration, 2) : 0;
             $lengthOfVisitHours = $avgDuration ? round($avgDuration / 60, 2) : 0;
 
-<<<<<<< HEAD
             // PEAK HOURS - Fixed untuk PostgreSQL
             $startPeak = $start->copy()->setTime(7, 0)->toDateTimeString();
             $endPeak = $end->copy()->setTime(17, 59, 59)->toDateTimeString();
@@ -656,16 +655,6 @@ class VisitorDetectionController extends Controller
             AVG(duration) as avg_duration
         ")
                 ->whereRaw("locale_time::timestamp BETWEEN ?::timestamp AND ?::timestamp", [$startPeak, $endPeak])
-=======
-            $peakHoursData = VisitorDetection::selectRaw(
-                "
-                EXTRACT(HOUR FROM locale_time::timestamp)::integer as hour,
-                COUNT(*) as visit_count,
-                AVG(duration::double precision) AS avg_duration
-                "
-            )
-                ->whereBetween('locale_time', [$start->copy()->setTime(7, 0), $end->copy()->setTime(17, 59, 59)])
->>>>>>> development
                 ->where('label', 'out')
                 ->where('is_matched', true)
                 ->groupByRaw("EXTRACT(HOUR FROM locale_time::timestamp)")
