@@ -222,13 +222,19 @@ class DashboardController extends Controller
 
     public function sidebar()
     {
-        // sidebar list
-        $pages = ['dashboard', 'visitor', 'raw_data', 'administrator', 'setting'];
+        $pages = [
+            'dashboard',
+            'visitor',
+            'raw_data',
+            'user_management',
+            'role_management',
+            'setting'
+        ];
 
-        // permissions mapping
         $permissionPages = [
-            'visitor:list' => ['dashboard', 'visitor', 'raw_data'],
-            'roles:list' => ['administrator'],
+            'visitor:list' => array_intersect($pages, [$pages[0], $pages[1], $pages[2]]),
+            'users:list' => array_intersect($pages, [$pages[3]]),
+            'roles:list' => array_intersect($pages, [$pages[4], $pages[5]])
         ];
 
         $user = auth()->user();

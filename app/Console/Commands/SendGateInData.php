@@ -89,7 +89,6 @@ class SendGateInData extends Command
 
                 if ($status !== 200) {
                     $this->info("Detection {$detection->id} - API Request Failed");
-                    Log::error('Error in ML API entry: ' . $body);
                     $this->sendFaceFailedCounter++;
                     continue;
                 }
