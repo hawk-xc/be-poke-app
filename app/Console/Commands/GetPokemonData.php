@@ -144,7 +144,7 @@ class GetPokemonData extends Command
 
             if ($imageContent) {
                 Storage::disk('minio')->put($imagePath, $imageContent);
-                return Storage::disk('minio')->url($imagePath);
+                return $imagePath;
             }
 
             return null;
