@@ -118,7 +118,7 @@ class PokemonController extends Controller
 
             if ($request->hasFile('image_path')) {
                 $path = Storage::disk('minio')->putFile('pokemons', $request->file('image_path'), 'public');
-                $pokemon->image_path = Storage::disk('minio')->url($path);
+                $pokemon->image_path = $path;
             }
 
             $pokemon->save();
@@ -174,7 +174,7 @@ class PokemonController extends Controller
                 }
 
                 $path = Storage::disk('minio')->putFile('pokemons', $request->file('image_path'), 'public');
-                $pokemon->image_path = Storage::disk('minio')->url($path);
+                $pokemon->image_path = $path;
             }
 
             $pokemon->save();
