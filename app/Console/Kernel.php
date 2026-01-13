@@ -14,9 +14,6 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\SendGateInData::class,
-        \App\Console\Commands\SendGateOutData::class,
-        \App\Console\Commands\ConstructFacedb::class
     ];
 
     /**
