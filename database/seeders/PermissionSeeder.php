@@ -16,32 +16,11 @@ class PermissionSeeder extends Seeder
     {
         $permissions = [
             // Visitor Permissions
-            'visitor:list',
-            'visitor:edit',
-            'visitor:create',
-            'visitor:delete',
-            'visitor:export',
-
-            // Role Permissions
-            'roles:list',
-            'roles:edit',
-            'roles:create',
-            'roles:delete',
-            'roles:export',
-
-            // Permission Permissions
-            'permissions:list',
-            'permissions:edit',
-            'permissions:create',
-            'permissions:delete',
-            'permissions:export',
-
-            // User Permissions
-            'users:list',
-            'users:edit',
-            'users:create',
-            'users:delete',
-            'users:export',
+            'pokemon:list',
+            'pokemon:edit',
+            'pokemon:create',
+            'pokemon:delete',
+            'pokemon:export',
         ];
 
         foreach ($permissions as $permission) {

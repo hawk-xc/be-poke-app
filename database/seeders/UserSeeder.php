@@ -21,11 +21,11 @@ class UserSeeder extends Seeder
         DB::table('users')->delete();
 
         $user = User::create([
-            'username' => 'admintwb12',
-            'firstname' => 'Admin',
-            'lastname' => 'true',
-            'name' => 'Admin TWB',
-            'email' => 'admin@deraly.id',
+            'username' => 't130',
+            'firstname' => 'T',
+            'lastname' => '130 codename SSA',
+            'name' => 'T130SSA',
+            'email' => 't130@skynet.id',
             'password' => bcrypt('rootme'),
             'secure_password' =>  encrypt('rootme')
         ]);
